@@ -1,4 +1,4 @@
-# CashCompass Layer 1 — Instructions & Commands
+# CashCompass Layer 1 + Layer 2 — Instructions & Commands
 
 ## Quick Start
 
@@ -10,17 +10,24 @@ pip install -e ".[dev]"
 cp .env.example .env
 # Edit .env if needed (defaults to localhost Postgres)
 
-# 3. Run migrations
+# 3. Generate Layer 2 vault keys (KEK, HSK, admin key) and paste into .env
+python scripts/gen_vault_keys.py
+
+# 4. Run migrations
 alembic upgrade head
 
-# 4. Seed demo data
+# 5. Seed demo data
 python scripts/seed.py
 
-# 5. Start server
+# 6. Start server
 uvicorn app.main:app --reload
 # Server at http://localhost:8000
 # Docs at http://localhost:8000/docs
 ```
+
+The server refuses to start (`get_key_provider()` runs in the FastAPI
+`lifespan`) if `VAULT_KEKS`/`VAULT_HSK` aren't configured — fails at boot,
+not at the first request.
 
 ## API Endpoints
 
@@ -114,9 +121,9 @@ Response:
 }
 ```
 
-### Sensitive Profile
+### Sensitive Profile (vault-protected)
 
-**Upsert sensitive profile** (not yet vault-protected)
+**Upsert sensitive profile** — server tokenizes identity/health fields before storage
 ```bash
 curl -X POST http://localhost:8000/profile/sensitive \
   -H "Content-Type: application/json" \
@@ -130,6 +137,62 @@ curl -X POST http://localhost:8000/profile/sensitive \
     "family_commitments": ["wedding in 8 months", "parent retirement plan"],
     "obligations": ["mother-in-law care", "sibling college fund"]
   }'
+# Response holds TKN_MEDICAL_.../TKN_NOTE_... tokens, not the plaintext above.
+```
+
+**Reveal a sensitive profile** (admin + audited — USER_FACING egress destination)
+```bash
+curl -X POST http://localhost:8000/profile/sensitive/reveal \
+  -H "Content-Type: application/json" \
+  -H "X-Vault-Admin-Key: $VAULT_ADMIN_KEY" \
+  -d '{"user_id": "user_123", "caller": "demo-user", "purpose": "support ticket #42"}'
+```
+
+### Vault (Layer 2)
+
+**Tokenize a value** (admin)
+```bash
+curl -X POST http://localhost:8000/vault/tokenize \
+  -H "Content-Type: application/json" \
+  -H "X-Vault-Admin-Key: $VAULT_ADMIN_KEY" \
+  -d '{"field_type": "NAME", "value": "Ramya G"}'
+```
+
+**Detokenize** (requires `caller` + `purpose`; caller must be on
+`VAULT_DETOKENIZE_ALLOWED_CALLERS`; every call — granted or denied — is audited)
+```bash
+curl -X POST http://localhost:8000/vault/detokenize \
+  -H "Content-Type: application/json" \
+  -d '{"token_id": "TKN_NAME_8f3a1c2b4d5e6f70", "caller": "demo-user", "purpose": "support ticket #42"}'
+```
+
+**Audit trail** (paginated, immutable)
+```bash
+curl "http://localhost:8000/vault/audit?limit=20&offset=0"
+```
+
+**Crypto-shred a token** (admin — irreversible; the ledger entry referencing it survives, now permanently opaque)
+```bash
+curl -X POST http://localhost:8000/vault/shred/TKN_NAME_8f3a1c2b4d5e6f70 \
+  -H "Content-Type: application/json" \
+  -H "X-Vault-Admin-Key: $VAULT_ADMIN_KEY" \
+  -d '{"reason": "DPDP erasure request"}'
+```
+
+**Rotate the KEK** (admin — re-wraps every DEK; ciphertext is untouched)
+```bash
+curl -X POST http://localhost:8000/vault/rotate-kek \
+  -H "Content-Type: application/json" \
+  -H "X-Vault-Admin-Key: $VAULT_ADMIN_KEY" \
+  -d '{"new_version": 2}'
+```
+
+**Egress preview** (debug — see exactly what each destination receives)
+```bash
+curl "http://localhost:8000/egress/preview?destination=OPTIMIZER"
+curl "http://localhost:8000/egress/preview?destination=DEBATE_AGENT"
+# compare: OPTIMIZER shows exact ₹ figures, DEBATE_AGENT shows banded ranges
+# and "leaks": [] proves nothing exact/health-related crossed the boundary.
 ```
 
 ## Primitives: Universal Life Event Decomposition
@@ -223,9 +286,25 @@ pytest tests/test_append_only.py::test_orm_update_raises -v
 
 ### Test Layers
 
+Layer 1:
 - **test_append_only.py**: ORM guard + Postgres trigger enforcement
 - **test_state_rebuild.py**: Pure `_fold_entries()` (no DB required)
 - **test_decompose.py**: Primitive round-trip, no hardcoded life-event types
+
+Layer 2 — the crypto core, normalization, tokens, egress policy, banding, and
+scanner are all pure and DB-free; only tests exercising the service/API layer
+need Postgres:
+- **test_vault_crypto.py**: AES-GCM envelope, nonce uniqueness, tamper detection (no DB)
+- **test_vault_normalize.py**: per-field_type canonicalization (no DB)
+- **test_vault_tokens.py**: blind index determinism, per-tenant HKDF (no DB)
+- **test_egress_policy.py**: destination projection, banding, default-deny, abstraction (no DB)
+- **test_vault_protected.py**: Pydantic + SQLAlchemy + Postgres cleartext guards
+- **test_vault_tokenize.py / test_vault_aad.py / test_vault_audit.py**: service layer round-trips, row-swap, audit completeness
+- **test_vault_rotation.py**: KEK rotation, ciphertext-unchanged guard
+- **test_vault_shred.py**: crypto-shredding, unrecoverability proof
+- **test_sensitive_vault.py**: SensitiveProfile tokenization
+- **test_vault_api.py**: HTTP layer — admin auth, allowlist denial, egress preview
+- **test_state_rebuild_tokenized.py**: proves the fold is tokenization-invariant (no DB)
 
 ## Design Principles
 
@@ -263,7 +342,8 @@ Source of truth never mutates. Corrections are *new compensating entries*. Benef
 
 After `python scripts/seed.py`:
 
-- **User**: demo (no user table yet; refer by session/auth in Layer 2)
+- **User**: demo (still no user/auth table — Layer 2 uses a single
+  `default_tenant_id` constant rather than adding one; real auth is a Layer 3+ concern)
 - **Savings**: ₹8L
 - **Monthly income**: ₹75k
 - **Stocks**: INFY 50u + RELIANCE 20u
@@ -274,13 +354,17 @@ Hit `GET /state` to see the rebuilt snapshot. Hit `GET /ledger` to see all entri
 
 ## Next Layers (Stubs / Seams)
 
-### Layer 2: Vault + LLM Decomposition
-- `app.services.hurdles.decompose()` raises NotImplementedError
-- Will implement NL → primitives (e.g., "wedding in 8 months, budget ₹5L" → 3 primitives)
-- Will add encryption/tokenization to TIER_HEALTH_FAMILY (SensitiveProfile)
-- Will gate access based on DPDP Act consent
+### Layer 2: PII Tokenization Vault — DONE
+Envelope encryption (per-record DEKs wrapped by a KEK), deterministic
+HMAC blind-index tokenization, AAD row-swap binding, a destination-aware
+`EgressPolicy`, and crypto-shredding. See the "Layer 2 — PII Tokenization
+Vault" section of README.md for the full design writeup and threat model.
 
-### Layer 3: Optimization / Planning Agent
+### Layer 3: LLM Decomposition + Optimization / Planning Agent
+- `app.services.hurdles.decompose()` still raises `NotImplementedError` —
+  untouched by Layer 2 (see README's "Explicit non-goals")
+- Will implement NL → primitives (e.g., "wedding in 8 months, budget ₹5L" → 3 primitives)
+- Will gate access based on DPDP Act consent
 - Given primitives + constraints, find feasible savings/investment plan
 - Recommend: "Move wedding 2 months forward, or raise salary ₹15k, or reduce ₹50k outflow"
 - Debate constraints: "Minimize risk" vs. "Maximize growth" vs. "Ensure legacy fund"
@@ -295,18 +379,27 @@ Hit `GET /state` to see the rebuilt snapshot. Hit `GET /ledger` to see all entri
 ```
 CashCompass/
   app/
-    main.py              ← FastAPI app, router wiring
+    main.py              ← FastAPI app, router wiring, lifespan key check, exception handlers
     config.py, db.py, enums.py, exceptions.py
-    models/              ← SQLAlchemy (Hurdle, LedgerEntry, SensitiveProfile)
-    schemas/             ← Pydantic v2 (discriminated union for Primitives)
-    services/            ← Business logic (_fold_entries, append_entry, etc.)
-    api/                 ← FastAPI routers (thin handlers)
-  alembic/               ← Migrations (tables + append-only trigger)
-  scripts/seed.py        ← Demo data
+    models/              ← SQLAlchemy (Hurdle, LedgerEntry, SensitiveProfile, VaultEntry, DetokenizationAudit)
+      append_only.py     ← shared append-only registry + before_flush guard
+    schemas/              ← Pydantic v2 (discriminated union for Primitives, vault/egress schemas)
+    services/             ← Business logic (_fold_entries, append_entry, vault, egress)
+    api/                  ← FastAPI routers (thin handlers)
+    vault/                ← Layer 2 core — NO SQLAlchemy/Session imports, fully DB-free
+      crypto.py           ← AES-256-GCM envelope primitives
+      keys.py              ← KeyProvider (Local prototype + Kms stub)
+      normalize.py         ← per-field_type canonicalization
+      tokens.py             ← HMAC blind index, AAD builders
+      classification.py     ← field → tier/kind registry, default-deny
+      egress.py              ← EgressPolicy, banding, health/family abstraction
+      scanner.py              ← leak scanner (used by tests + /egress/preview)
+      protected.py            ← VaultToken, VaultProtectedModel/Mixin
+  alembic/               ← Migrations (tables + append-only + cleartext-guard triggers)
+  scripts/seed.py, scripts/gen_vault_keys.py
   tests/
-    test_append_only.py  ← Ledger immutability
-    test_state_rebuild.py ← State folding
-    test_decompose.py    ← Primitives, no hardcoded types
+    test_append_only.py, test_state_rebuild.py, test_decompose.py          ← Layer 1
+    test_vault_*.py, test_egress_policy.py, test_sensitive_vault.py, ...   ← Layer 2
   pyproject.toml, alembic.ini, .env.example, README.md
 ```
 
@@ -330,6 +423,15 @@ docker run -d --name cashcompass-pg \
 
 **Tests fail on Windows (Docker daemon not running)**
 → Set `TEST_DATABASE_URL` to a running Postgres, or start Docker Desktop.
+
+**`KeyConfigurationError: VAULT_KEKS and VAULT_HSK must be configured`**
+→ Run `python scripts/gen_vault_keys.py` and paste its output into `.env`.
+The server checks this at boot (FastAPI `lifespan`), not at the first request.
+
+**`app.exceptions.CleartextLeakError` on a SensitiveProfile write**
+→ Something bypassed `app.services.sensitive.upsert_sensitive_profile()` and
+tried to write plaintext into a vault-protected column directly. Go through
+the service function — it tokenizes before the ORM object is ever built.
 
 ## Money Representation
 

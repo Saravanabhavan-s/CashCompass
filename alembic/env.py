@@ -17,8 +17,12 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override DB URL from application settings (env var / .env file).
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Override DB URL from application settings (env var / .env file) — unless
+# the caller explicitly requested a different one via ALEMBIC_DATABASE_URL
+# (used by tests/conftest.py to point migrations at a testcontainer, since
+# `settings` is a module-level singleton already frozen by the time the
+# test DB URL is known).
+config.set_main_option("sqlalchemy.url", os.environ.get("ALEMBIC_DATABASE_URL") or settings.database_url)
 
 target_metadata = Base.metadata
 
