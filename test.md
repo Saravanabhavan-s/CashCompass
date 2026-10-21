@@ -306,8 +306,8 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST $BASE/vault/detokenize \
 # expect 403
 ```
 
-### `GET /vault/audit?limit=&offset=&token_id=`
-**Input**: query params, all optional. `limit` `1..200` default `50`.
+### `GET /vault/audit?limit=&offset=&token_id=`  (admin)
+**Input**: `X-Vault-Admin-Key` header, plus query params, all optional. `limit` `1..200` default `50`.
 `token_id` filters to one token's history.
 **Expected output**: `200`:
 ```json

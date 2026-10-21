@@ -43,7 +43,7 @@ def detokenize(body: DetokenizeRequest, db: Session = Depends(get_db)):
     return DetokenizeResponse(token_id=body.token_id, value=value)
 
 
-@router.get("/audit", response_model=AuditPage)
+@router.get("/audit", response_model=AuditPage, dependencies=[Depends(require_vault_admin)])
 def audit(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),

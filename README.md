@@ -86,7 +86,7 @@ uvicorn app.main:app --reload
 - `POST /profile/sensitive/reveal` — plaintext projection, admin + caller/purpose required, audited
 - `POST /vault/tokenize` — admin — tokenize a value (idempotent)
 - `POST /vault/detokenize` — reverse a token; requires `caller` + `purpose`; always audited
-- `GET  /vault/audit` — paginated, immutable audit trail
+- `GET  /vault/audit` — paginated, immutable audit trail (admin)
 - `POST /vault/shred/{token_id}` — admin — crypto-shred a token (irreversible)
 - `POST /vault/rotate-kek` — admin — re-wrap all DEKs under a new KEK
 - `GET  /egress/preview?destination=` — debug: see exactly what DEBATE_AGENT/OPTIMIZER/USER_FACING

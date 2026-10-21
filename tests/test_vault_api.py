@@ -85,6 +85,11 @@ def test_rotate_kek_endpoint_accepts_version_not_key_material(client, admin_head
     assert "new_kek" not in body
 
 
+def test_audit_requires_admin_key(client):
+    resp = client.get("/vault/audit")
+    assert resp.status_code == 401
+
+
 def test_audit_endpoint_paginates(client, admin_headers):
     for i in range(3):
         tok_resp = client.post(
@@ -95,7 +100,7 @@ def test_audit_endpoint_paginates(client, admin_headers):
             json={"token_id": tok_resp.json()["token_id"], "caller": "test-caller", "purpose": "audit page test"},
         )
 
-    resp = client.get("/vault/audit", params={"limit": 2, "offset": 0})
+    resp = client.get("/vault/audit", params={"limit": 2, "offset": 0}, headers=admin_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert len(body["items"]) == 2

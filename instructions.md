@@ -175,9 +175,10 @@ curl -X POST http://localhost:8000/vault/detokenize \
   -d '{"token_id": "TKN_NAME_8f3a1c2b4d5e6f70", "caller": "demo-user", "purpose": "support ticket #42"}'
 ```
 
-**Audit trail** (paginated, immutable)
+**Audit trail** (admin — paginated, immutable)
 ```bash
-curl "http://localhost:8000/vault/audit?limit=20&offset=0"
+curl "http://localhost:8000/vault/audit?limit=20&offset=0" \
+  -H "X-Vault-Admin-Key: $VAULT_ADMIN_KEY"
 ```
 
 **Crypto-shred a token** (admin — irreversible; the ledger entry referencing it survives, now permanently opaque)
