@@ -29,7 +29,16 @@ The server refuses to start (`get_key_provider()` runs in the FastAPI
 `lifespan`) if `VAULT_KEKS`/`VAULT_HSK` aren't configured — fails at boot,
 not at the first request.
 
+**For every endpoint's exact request body, expected response, and pass/fail
+criteria, see [test.md](test.md)** — the curl examples below are a subset;
+test.md covers all of Layer 1 + Layer 2 plus cross-cutting checks (audit
+completeness, immutability, no-plaintext-at-rest).
+
 ## API Endpoints
+
+Curl examples below. For the full picture per endpoint — input schema,
+validation rules, exact expected response shape, and what pass vs. fail
+looks like — see [test.md](test.md).
 
 ### Hurdles
 
@@ -272,6 +281,10 @@ curl -X POST http://localhost:8000/ledger \
 When you rebuild state, both entries fold in order → correct snapshot.
 
 ## Testing
+
+Automated suite below. For manual/curl testing of each endpoint one at a
+time — exact request bodies, expected responses, pass/fail criteria — see
+[test.md](test.md).
 
 ```bash
 # All tests (uses testcontainers to spin up Postgres, or TEST_DATABASE_URL env var)

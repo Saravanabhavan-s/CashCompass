@@ -92,7 +92,14 @@ uvicorn app.main:app --reload
 - `GET  /egress/preview?destination=` — debug: see exactly what DEBATE_AGENT/OPTIMIZER/USER_FACING
   would receive for the current state, plus a live leak scan
 
+**For a full manual test pass of every endpoint** — exact request bodies,
+expected responses, and pass/fail criteria — see **[test.md](test.md)**.
+
 ## Tests
+
+See [test.md](test.md) for a per-endpoint manual testing guide (setup, exact
+inputs, expected outputs, pass/fail checks) — useful for a live demo or
+debugging a single endpoint by hand. For the automated suite:
 
 ```bash
 # With a running Postgres:
