@@ -86,6 +86,17 @@ def test_every_prompt_labels_the_case_c1_and_system_explains_the_rule(ctx):
         assert "cite C1" in req.system and "external facts cite E-handles" in req.system
 
 
+def test_keep_fact_rule_only_in_rounds_two_and_up(ctx):
+    llm = ScriptedLLM(default_responder)
+    run_debate(ctx, llm)
+    rule = prompts.KEEP_FACT_RULE
+    assert "do not downgrade all claims to INFERENCE" in rule
+    for req in llm.calls:
+        in_prompt = rule in req.prompt
+        assert in_prompt == (req.tag["round"] >= 2), req.tag
+        assert rule not in req.system  # system prompt is shared by all rounds
+
+
 def test_prompt_version_is_stable():
     assert re.fullmatch(r"[0-9a-f]{16}", prompts.PROMPT_VERSION)
 

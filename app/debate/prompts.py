@@ -52,6 +52,11 @@ EVIDENCE (frozen snapshot):
 
 {output_spec}"""
 
+KEEP_FACT_RULE = (
+    "Keep at least one FACT claim with a valid handle and verbatim quoted figures; "
+    "do not downgrade all claims to INFERENCE."
+)
+
 ROUND_N_TEMPLATE = """ROUND {round_no} of {rounds} (refine your answer; keep your persona's reasoning strategy).
 
 USER CASE [C1] (egress-projected, banded):
@@ -73,6 +78,7 @@ LEADING GROUP'S TOP CLAIMS:
 {leader_claims}
 
 Update your plan and claims in light of the above. Rebut specific personas where you disagree.
+Keep at least one FACT claim with a valid handle and verbatim quoted figures; do not downgrade all claims to INFERENCE.
 
 {output_spec}"""
 
@@ -105,6 +111,9 @@ PROMPT_VERSION: str = hashlib.sha256(
         sort_keys=True,
     ).encode("utf-8")
 ).hexdigest()[:16]
+
+
+assert KEEP_FACT_RULE in ROUND_N_TEMPLATE and KEEP_FACT_RULE not in ROUND1_TEMPLATE + SYSTEM_TEMPLATE + REPAIR_TEMPLATE
 
 
 def system_prompt(persona: Persona) -> str:
