@@ -649,7 +649,9 @@ Exact amounts reach this layer (OPTIMIZER egress) and the user's own view only.
 - **Ranking**: scenarios_feasible desc, goal_shortfall asc, deadline shift asc,
   debate support desc, terminal pool desc, `Plan.key()`.
 - **Repair search**: if no debated candidate is base-feasible and policy-clean, the
-  lever grid is searched for the least-change feasible plan (`plan_distance`).
+  lever grid is searched for the minimal-intervention feasible plan: smallest
+  `deadline_shift_months` first (moving a goal is the most invasive change), then
+  smallest `plan_distance` to the best debated candidate.
 - **Feasibility** (`assess_feasibility`): the best-case plan (100% saving, policy-clean,
   12-month shift) decides INFEASIBLE and returns the quantified gap: extra monthly
   saving (whole rupees, no delay) and months of delay needed. `quick_feasibility_check`

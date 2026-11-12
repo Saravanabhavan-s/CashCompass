@@ -270,8 +270,15 @@ def _clip_equity(alloc: dict[Instrument, int], cap: int) -> dict[Instrument, int
     return out
 
 
+def repair_sort_key(origin: Plan, plan: Plan) -> tuple:
+    """Minimal intervention, in this order: smallest deadline delay FIRST (moving a
+    goal is the most invasive change), then smallest plan_distance to the best
+    debated candidate `origin`, then Plan.key() for determinism."""
+    return (plan.deadline_shift_months, plan_distance(origin, plan), plan.key())
+
+
 def _repair(state, prims, origin: Plan, assumptions, living, as_of) -> Plan | None:
-    """Least-change feasible plan: smallest plan_distance from `origin`."""
+    """Least-intervention feasible plan (see repair_sort_key)."""
     cands: dict[tuple, Plan] = {}
     buffers = sorted({origin.emergency_buffer_months, 0, 3, 6})
     for shift in range(0, 13):
@@ -288,7 +295,7 @@ def _repair(state, prims, origin: Plan, assumptions, living, as_of) -> Plan | No
             p = Plan(allocation=a, monthly_saving_rate=rate, deadline_shift_months=shift, emergency_buffer_months=buf)
             if not policy_violations(p, months):
                 cands[p.key()] = p
-    for p in sorted(cands.values(), key=lambda c: (plan_distance(origin, c), c.key())):
+    for p in sorted(cands.values(), key=lambda c: repair_sort_key(origin, c)):
         if _base_feasible(state, prims, p, assumptions, living, as_of):
             return p
     return None

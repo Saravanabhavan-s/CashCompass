@@ -218,16 +218,51 @@ def test_ranking_order_lexicographic():
 
 
 # ---- repair + infeasible ----------------------------------------------------
-def test_repair_search_finds_known_least_change_solution():
+def test_repair_search_prefers_no_delay_when_a_zero_shift_plan_exists():
     state = st(savings="0")
     prims = [Goal(target_amount=D(100000), deadline=date(2026, 4, 20), priority=1)]  # month 3
     origin = mk(liq=100, rate=20)  # saves 6000 x 4 months = 24000: infeasible
     res = optimize(state, prims, [(origin, 0.8)], ZERO_RATES, LIVING, AS_OF)
-    # surplus 30000/mo. shift 3 + rate 50 -> 7 months x 15000 = 105000 >= 100000 at distance 0.1375,
-    # beating rate 85 / shift 0 (0.1625) and every other shift (>= 0.1417)
+    # surplus 30000/mo: shift 0 needs 4 x 30000 x r >= 100000 -> r = 85. A delay (shift 3 + rate 50 is
+    # closer to the origin) is NOT preferred: the smallest deadline shift wins first.
     assert res.status == "REPAIRED" and res.repaired_from == origin
-    assert res.chosen == mk(liq=100, rate=50, shift=3)
+    assert res.chosen == mk(liq=100, rate=85, shift=0)
     assert res.chosen_eval.feasible_base and res.gap is None
+
+
+def test_repair_returns_minimal_delay_when_a_delay_is_truly_needed():
+    state = st(savings="0")
+    prims = [Goal(target_amount=D(200000), deadline=date(2026, 4, 20), priority=1)]  # month 3
+    # shift 0: at most 4 x 30000 = 120000; shift 2: 180000; shift 3: 7 x 30000 = 210000 >= 200000 (needs rate 100)
+    res = optimize(state, prims, [(mk(liq=100, rate=20), 0.8)], ZERO_RATES, LIVING, AS_OF)
+    assert res.status == "REPAIRED"
+    assert res.chosen == mk(liq=100, rate=100, shift=3)
+
+
+def test_repair_seed_wedding_returns_shift_zero_even_from_a_delayed_origin():
+    state = st(savings="800000", income="75000")
+    prims = [
+        OneTimeOutflow(amount=D(500000), due_date=date(2026, 4, 20)),
+        Goal(target_amount=D(500000), deadline=date(2026, 4, 20), priority=1),
+        RiskConstraint(min_liquidity=D(100000), reason="r"),
+    ]
+    # all-FD plan with a 4-month delay: paying 500k from FD leaves no liquid money -> floor breach
+    origin = mk(fd=100, rate=0, shift=4)
+    assert not evaluate_plan(state, prims, origin, ZERO_RATES, LIVING, AS_OF).feasible_base
+    res = optimize(state, prims, [(origin, 0.9)], ZERO_RATES, LIVING, AS_OF)
+    assert res.status == "REPAIRED" and res.chosen.deadline_shift_months == 0
+    assert res.chosen == mk(liq=100, rate=0, shift=0)  # then the closest plan to the origin (key breaks the tie)
+
+
+def test_repair_sort_key_orders_shift_before_distance():
+    from app.optimizer.search import repair_sort_key
+
+    origin = mk(liq=100, rate=20, shift=0)
+    far_no_delay = mk(cash=100, rate=100, shift=0)
+    near_with_delay = mk(liq=100, rate=20, shift=1)
+    near_no_delay = mk(liq=100, rate=25, shift=0)
+    order = sorted([near_with_delay, far_no_delay, near_no_delay], key=lambda p: repair_sort_key(origin, p))
+    assert order == [near_no_delay, far_no_delay, near_with_delay]
 
 
 def test_infeasible_gap_numbers_by_hand():
