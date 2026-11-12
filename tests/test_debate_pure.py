@@ -55,8 +55,13 @@ def test_plan_key_hashable_and_equal():
 
 
 def test_claim_rejects_bad_handle():
-    with pytest.raises(ValidationError):
-        Claim(kind="FACT", text="x", evidence_ids=["3"])
+    for bad in ("3", "X1", "e1", "C", "E"):
+        with pytest.raises(ValidationError):
+            Claim(kind="FACT", text="x", evidence_ids=[bad])
+
+
+def test_claim_accepts_evidence_and_case_handles():
+    assert Claim(kind="FACT", text="x", evidence_ids=["E12", "C1"]).evidence_ids == ["E12", "C1"]
 
 
 # ---- aggregate_plans -------------------------------------------------------

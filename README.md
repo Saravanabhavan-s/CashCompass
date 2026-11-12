@@ -616,6 +616,13 @@ itself hallucinate). It scores every claim against the frozen snapshot.
   lever) since the previous round. Targets are searched in the rebutter's group,
   else in all groups; resolved if any of them moved.
 
+- **The user case is citable (`C1`)**: the banded case file the agents see is exposed as
+  handle `C1` (source `CASE`, weight 1.0), so a statement like "goal of 5-6 lakh" can be
+  cited and checked instead of being flagged as ungrounded. Statements about the user's
+  own situation cite `C1`, external facts cite E-handles, a claim may cite both; figures
+  are checked against the union of the cited items' text (dash variants are normalised).
+  `C2` etc. are unknown handles. The report counts FACT claims citing C1, E-handles, both, neither.
+
 Not built here: optimizer, guardrails, recommendation endpoints, eval harness.
 
 ---

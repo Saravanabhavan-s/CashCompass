@@ -33,7 +33,12 @@ REFS = (
     _ref(2, "ALPHA_VANTAGE", "SPY monthly close was 520.10 with   volume 7 million."),
     _ref(3, "LOCAL_REGULATORY", "DICGC insures deposits up to Rs 5 lakh per depositor per bank."),
 )
+CASE_REF = EvidenceRef(
+    handle="C1", source="CASE", query="case", lens_tags=ALL, citation="case",
+    content='{"hurdle": [{"goal": "₹5–6 lakh", "months_from_now": "6–12 months"}]}',
+)
 HM = {r.handle: r for r in REFS}
+HM["C1"] = CASE_REF  # the banded user case, citable like evidence (not part of ctx.items)
 
 
 def C(kind, ids=(), figs=(), text="t"):
@@ -81,6 +86,33 @@ def test_flag_ungrounded_figure_and_ratio():
     assert score_claim(C("FACT", ["E1"], ["520.10"]), HM).flagged
     # grounded in ANY cited item is enough
     assert not score_claim(C("FACT", ["E1", "E2"], ["520.10"]), HM).flagged
+
+
+# ---- C1: the banded case as citable evidence --------------------------------
+def test_case_figure_present_and_citing_c1_is_grounded():
+    s = score_claim(C("FACT", ["C1"], ["5-6 lakh"]), HM)  # hyphen typed; the case has an en dash
+    assert (s.flagged, s.reasons, s.score, s.mean_source_weight) == (False, [], 1.0, 1.0)
+    assert not score_claim(C("FACT", ["C1"], ["₹5–6 lakh", "6-12 months"]), HM).flagged
+
+
+def test_case_figure_absent_is_ungrounded():
+    s = score_claim(C("FACT", ["C1"], ["9-10 lakh"]), HM)
+    assert s.flagged and s.reasons == ["ungrounded_figure"] and s.score == 0.0
+
+
+def test_c2_is_unknown_handle():
+    s = score_claim(C("FACT", ["C2"]), HM)
+    assert s.flagged and s.reasons == ["unknown_handle"] and s.score == 0.0
+    assert score_claim(C("FACT", ["C1", "C2"]), HM).reasons == ["unknown_handle"]
+
+
+def test_claim_citing_c1_and_e3_is_checked_against_both():
+    ok = score_claim(C("FACT", ["C1", "E3"], ["5-6 lakh", "Rs 5 lakh"]), HM)  # one figure per item
+    assert not ok.flagged and ok.figure_grounding_ratio == 1.0 and ok.score == 1.0
+    bad = score_claim(C("FACT", ["C1", "E3"], ["5-6 lakh", "nowhere"]), HM)
+    assert bad.flagged and bad.reasons == ["ungrounded_figure"] and bad.figure_grounding_ratio == 0.5
+    assert score_claim(C("FACT", ["C1", "E2"], ["5-6 lakh"]), HM).score == 0.9  # (1.0 case + 0.8 AV) / 2
+    assert score_claim(C("FACT", ["E3"], ["5-6 lakh"]), HM).flagged  # not cited -> not checked against C1
 
 
 def test_multiple_reasons_all_recorded():
@@ -193,8 +225,8 @@ def _responder(req):
         claims = [fact(["E1"], ["3.5"])]
     elif (g, p) == ("group_2", "opportunity_seeker"):
         claims = [fact(["E2"], ["999"])]  # ungrounded figure every round
-    else:  # group_2 contrarian: inference only
-        claims = [inference()]
+    else:  # group_2 contrarian: a grounded statement about the user's own case + inference
+        claims = [fact(["C1"], ["5–6 lakh"]), inference()]
     return reply(plan(), claims)
 
 
@@ -207,18 +239,18 @@ def scripted_result():
 def test_hallucination_rate_arithmetic(scripted_result):
     ctx, res = scripted_result
     m = hallucination_metrics(res.turns, ctx.handle_map)
-    # round 1: facts 2+1+1+1+1 = 6, flagged 1+0+1+0+1 = 3 ; rounds 2,3: 6 facts, 2 flagged
-    assert (m.overall.flagged, m.overall.total, m.overall.rate) == (7, 18, 0.388889)
-    assert (m.by_round["1"].flagged, m.by_round["1"].total, m.by_round["1"].rate) == (3, 6, 0.5)
+    # round 1: facts 2+1+1+1+1+1 = 7, flagged 1+0+1+0+1+0 = 3 ; rounds 2,3: 7 facts, 2 flagged
+    assert (m.overall.flagged, m.overall.total, m.overall.rate) == (7, 21, 0.333333)
+    assert (m.by_round["1"].flagged, m.by_round["1"].total, m.by_round["1"].rate) == (3, 7, 0.428571)
     for r in ("2", "3"):
-        assert (m.by_round[r].flagged, m.by_round[r].total, m.by_round[r].rate) == (2, 6, 0.333333)
+        assert (m.by_round[r].flagged, m.by_round[r].total, m.by_round[r].rate) == (2, 7, 0.285714)
     bp = {k: (v.flagged, v.total, v.rate) for k, v in m.by_persona.items()}
     assert bp == {
         "skeptic": (3, 9, 0.333333),  # appears in both groups
         "saver": (0, 3, 0.0),
         "liquidity_hawk": (1, 3, 0.333333),
         "opportunity_seeker": (3, 3, 1.0),
-        "contrarian": (0, 0, 0.0),  # no FACT claims -> 0.0
+        "contrarian": (0, 3, 0.0),  # C1-grounded FACT every round
     }
 
 
@@ -234,6 +266,8 @@ def test_report_shape_and_roundtrip(scripted_result):
     assert rep.final_round == 3 and rep.snapshot_hash == "h"
     assert rep.agreement == 1.0  # every agent proposes the same plan
     assert len(rep.agent_scores) == 18
+    # FACT claims by citation: 15 cite E-handles (incl. the unknown E99), 3 cite C1, 3 cite nothing
+    assert rep.citations.model_dump() == {"facts_total": 21, "citing_case": 3, "citing_evidence": 15, "citing_both": 0, "uncited": 3}
     assert set(rep.group_scores) == {"group_1", "group_2"}
     final_flagged = {(f.group, f.persona): f.reasons for f in rep.flagged_claims if f.round_no == 3}
     assert final_flagged == {("group_1", "skeptic"): ["no_citation"], ("group_2", "opportunity_seeker"): ["ungrounded_figure"]}

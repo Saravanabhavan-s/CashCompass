@@ -21,7 +21,8 @@ Your persona: {persona_name}.
 Rules:
 - You argue STRATEGY only. Never do arithmetic on money; deterministic code computes amounts later.
 - All user figures are coarse bands. Do not try to infer exact amounts.
-- Use ONLY the numbered evidence items (E1, E2, ...) you are shown. Do not rely on outside knowledge for FACT claims.
+- Use ONLY the numbered evidence items (E1, E2, ...) and the user case [C1] you are shown. Do not rely on outside knowledge for FACT claims.
+- Statements about the user's own situation cite C1 (the user case below); external facts cite E-handles; a claim may cite both.
 - A FACT claim must cite at least one evidence handle in evidence_ids, and every number in quoted_figures must appear verbatim in a cited item.
 - An INFERENCE claim is your own reasoning; label it INFERENCE and do not present it as sourced.
 - Reply with ONE JSON object and nothing else."""
@@ -43,7 +44,7 @@ Persona ids: saver, liquidity_hawk, skeptic, opportunity_seeker, contrarian."""
 
 ROUND1_TEMPLATE = """ROUND {round_no} of {rounds} (independent answer).
 
-USER CASE (egress-projected, banded):
+USER CASE [C1] (egress-projected, banded):
 {case}
 
 EVIDENCE (frozen snapshot):
@@ -53,7 +54,7 @@ EVIDENCE (frozen snapshot):
 
 ROUND_N_TEMPLATE = """ROUND {round_no} of {rounds} (refine your answer; keep your persona's reasoning strategy).
 
-USER CASE (egress-projected, banded):
+USER CASE [C1] (egress-projected, banded):
 {case}
 
 EVIDENCE (frozen snapshot):

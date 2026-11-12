@@ -62,7 +62,7 @@ class ClaimKind(str, Enum):
     INFERENCE = "INFERENCE"
 
 
-_HANDLE = re.compile(r"^E\d+$")
+_HANDLE = re.compile(r"^[EC]\d+$")  # E<n> = snapshot evidence, C<n> = case file (only C1 exists)
 
 
 class Claim(BaseModel):

@@ -68,6 +68,24 @@ def test_llm_not_configured_by_default(monkeypatch):
         get_llm_client()
 
 
+def test_case_is_citable_as_c1_without_exact_amounts(ctx):
+    c1 = ctx.handle_map["C1"]
+    assert c1.source == "CASE" and c1.handle == "C1"
+    assert c1.content == ctx.case_json()  # exactly what the agents are shown
+    assert "C1" not in {i.handle for i in ctx.items}  # not part of the persona evidence packs
+    assert "lakh" in c1.content  # banded
+    for bad in ("500000", "5,00,000", "500,000", "100000", "1,00,000", "100,000", "TKN_", "Wedding", "wedding buffer"):
+        assert bad not in c1.content, bad
+
+
+def test_every_prompt_labels_the_case_c1_and_system_explains_the_rule(ctx):
+    llm = ScriptedLLM(default_responder)
+    run_debate(ctx, llm)
+    for req in llm.calls:
+        assert "USER CASE [C1]" in req.prompt and ctx.case_json() in req.prompt
+        assert "cite C1" in req.system and "external facts cite E-handles" in req.system
+
+
 def test_prompt_version_is_stable():
     assert re.fullmatch(r"[0-9a-f]{16}", prompts.PROMPT_VERSION)
 

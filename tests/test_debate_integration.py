@@ -109,3 +109,23 @@ def test_clean_default_run_has_zero_hallucinations(setup):
     rep = evaluate_debate(res, ctx)
     assert rep.hallucination.overall.rate == 0.0 and rep.flagged_claims == []
     assert all(a.score > 0 for a in rep.agent_scores)
+
+
+def test_case_citations_end_to_end(setup):
+    _, _, ctx = setup
+    case = ctx.handle_map["C1"].content
+    assert "5–6 lakh" in case  # the 5,00,000 goal, banded
+
+    def responder(req):
+        t = req.tag
+        if (t["group"], t["persona"]) == ("group_1", "saver"):
+            claims = [fact(["C1"], ["5-6 lakh"]), fact(["C2"]), inference()]  # grounded case claim; unknown handle
+            return reply(plan(20, 20, 50, 10, rate=30), claims, "s")
+        return default_responder(req)
+
+    res = run_debate(ctx, ScriptedLLM(responder), selector=EvidenceQualitySelector())
+    rep = evaluate_debate(res, ctx)
+    flagged = [(f.group, f.persona, f.reasons) for f in rep.flagged_claims]
+    assert flagged == [("group_1", "saver", ["unknown_handle"])] * 3  # one per round; the C1 claim is NOT flagged
+    assert rep.citations.citing_case == 3 and rep.citations.citing_evidence == 15
+    assert rep.citations.facts_total == 21 and rep.citations.uncited == 0

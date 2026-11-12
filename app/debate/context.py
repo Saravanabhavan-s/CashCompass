@@ -24,6 +24,10 @@ from app.vault.egress import apply_egress, band_months
 from app.vault.scanner import scan
 
 
+CASE_HANDLE = "C1"
+CASE_SOURCE = "CASE"
+
+
 @dataclass(frozen=True)
 class EvidenceRef:
     handle: str  # "E1".. in canonical snapshot order
@@ -41,6 +45,7 @@ class DebateContext:
     snapshot_hash: str
     items: tuple[EvidenceRef, ...]
     handle_map: dict[str, EvidenceRef] = field(default_factory=dict, compare=False)
+    case_ref: EvidenceRef | None = None  # handle "C1": the banded case file, citable like evidence
 
     def case_json(self) -> str:
         return json.dumps(self.case, sort_keys=True, ensure_ascii=False, default=str, indent=1)
@@ -148,10 +153,22 @@ def build_debate_context(
         raise DebateInputLeak(f"debate case leaked ({len(leaks)}): {leaks[0]}")
 
     items = evidence_refs(snapshot)
+    ctx = DebateContext(case=case, snapshot_id=snapshot.id, snapshot_hash=snapshot.snapshot_hash, items=items)
+    # C1 = the exact banded JSON the agents already see (already leak-scanned above),
+    # so statements about the user's own situation can be cited and checked.
+    case_ref = EvidenceRef(
+        handle=CASE_HANDLE,
+        source=CASE_SOURCE,
+        query="case",
+        lens_tags=frozenset(p.value for p in Persona),
+        content=ctx.case_json(),
+        citation="user case (egress-projected, banded)",
+    )
     return DebateContext(
         case=case,
-        snapshot_id=snapshot.id,
-        snapshot_hash=snapshot.snapshot_hash,
+        snapshot_id=ctx.snapshot_id,
+        snapshot_hash=ctx.snapshot_hash,
         items=items,
-        handle_map={i.handle: i for i in items},
+        handle_map={CASE_HANDLE: case_ref, **{i.handle: i for i in items}},
+        case_ref=case_ref,
     )

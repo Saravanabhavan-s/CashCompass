@@ -35,7 +35,7 @@ from typing import Mapping
 from pydantic import BaseModel
 
 from app.debate.aggregate import aggregate_plans, plan_distance
-from app.debate.context import DebateContext, EvidenceRef
+from app.debate.context import CASE_HANDLE, DebateContext, EvidenceRef
 from app.debate.schemas import AgentOutput, AgentTurn, Claim, ClaimKind, DebateResult, LeaderDecision, Plan
 from app.evidence.personas import Persona
 from app.evidence.sources import EvidenceSource
@@ -44,6 +44,7 @@ SOURCE_WEIGHT: dict[str, Decimal] = {
     EvidenceSource.FRED.value: Decimal("1.0"),
     EvidenceSource.LOCAL_REGULATORY.value: Decimal("1.0"),
     EvidenceSource.ALPHA_VANTAGE.value: Decimal("0.8"),
+    "CASE": Decimal("1.0"),  # C1: the user's own banded case file
 }
 INFERENCE_WEIGHT = Decimal("0.3")
 
@@ -54,8 +55,13 @@ def _f(d: Decimal) -> float:
     return float(d.quantize(_Q, rounding=ROUND_HALF_UP))
 
 
+_DASHES = str.maketrans({"–": "-", "—": "-", "−": "-"})  # en/em dash, minus -> '-'
+
+
 def _norm(s: str) -> str:
-    return re.sub(r"[\s,]+", "", s)
+    """Whitespace/comma normalisation, plus dash variants (the banded case uses an
+    en dash, e.g. "5-6 lakh", which models routinely retype as a hyphen)."""
+    return re.sub(r"[\s,]+", "", s.translate(_DASHES))
 
 
 # ---- report models ---------------------------------------------------------
@@ -112,6 +118,16 @@ class Dissent(BaseModel):
     round_no: int
 
 
+class CitationCounts(BaseModel):
+    """FACT claims by what they cite: the user case (C1), snapshot evidence (E-handles), both, or nothing."""
+
+    facts_total: int
+    citing_case: int
+    citing_evidence: int
+    citing_both: int
+    uncited: int
+
+
 class EvaluationReport(BaseModel):
     snapshot_hash: str
     prompt_version: str
@@ -119,6 +135,7 @@ class EvaluationReport(BaseModel):
     agent_scores: list[AgentScore]
     group_scores: dict[str, float]  # final round
     hallucination: HallucinationMetrics
+    citations: CitationCounts
     flagged_claims: list[FlaggedClaim]
     agreement: float
     candidates: list[Candidate]
@@ -226,6 +243,24 @@ def hallucination_metrics(turns: list[AgentTurn], handle_map: Mapping[str, Evide
         by_round={str(r): get("round", r) for r in rounds},
         by_persona={p: get("persona", p) for p in personas},
     )
+
+
+def citation_counts(turns: list[AgentTurn]) -> CitationCounts:
+    total = case = ev = both = none = 0
+    for t in turns:
+        if not t.output:
+            continue
+        for c in t.output.claims:
+            if c.kind != ClaimKind.FACT:
+                continue
+            total += 1
+            has_case = CASE_HANDLE in c.evidence_ids
+            has_ev = any(h.startswith("E") for h in c.evidence_ids)
+            case += has_case
+            ev += has_ev
+            both += has_case and has_ev
+            none += not c.evidence_ids
+    return CitationCounts(facts_total=total, citing_case=case, citing_evidence=ev, citing_both=both, uncited=none)
 
 
 # ---- selector --------------------------------------------------------------
@@ -354,6 +389,7 @@ def evaluate_debate(result: DebateResult, ctx: DebateContext) -> EvaluationRepor
         agent_scores=agent_scores,
         group_scores=group_scores,
         hallucination=hallucination_metrics(result.turns, hm),
+        citations=citation_counts(result.turns),
         flagged_claims=flagged_claims,
         agreement=agreement,
         candidates=candidates,
