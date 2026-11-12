@@ -177,9 +177,11 @@ def run_pipeline(
     state: FinancialState | None = None,
     snapshot: Any = None,
     persist_debate: bool = True,
+    ctx: DebateContext | None = None,
 ) -> Outcome:
     """Steps 1-5 of the orchestrator; no recommendation row is written. `state`
-    (eval harness) overrides the ledger-derived state."""
+    (eval harness) overrides the ledger-derived state; `ctx` lets a caller share one
+    already-built (and leak-scanned) debate context between arms."""
     hurdle = db.get(Hurdle, hurdle_id)
     if hurdle is None:
         raise HurdleNotFound(f"Hurdle {hurdle_id} not found.")
@@ -212,7 +214,7 @@ def run_pipeline(
     forbidden = _magnitudes(math_state.model_dump(mode="python")) + _magnitudes(hurdle.primitives)
     guarded = _GuardedLLM(llm, forbidden)
     try:
-        ctx = build_debate_context(db, hurdle_id, snapshot, as_of=as_of, user_id=user_id, state=state)
+        ctx = ctx or build_debate_context(db, hurdle_id, snapshot, as_of=as_of, user_id=user_id, state=state)
         result = run_debate(ctx, guarded, selector=EvidenceQualitySelector())
     except DebateInputLeak as leak:
         return Outcome(

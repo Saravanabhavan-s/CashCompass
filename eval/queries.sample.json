@@ -1,0 +1,114 @@
+{
+  "note": "SAMPLE queries with ILLUSTRATIVE labels. Dates are relative (+Nd = as_of + N days). Replace with 30-50 hand-labelled queries before reporting results.",
+  "queries": [
+    {
+      "id": "wedding_8m",
+      "description": "Wedding in about 8 months with a liquidity buffer",
+      "primitives": [
+        {"type": "ONE_TIME_OUTFLOW", "amount": "500000", "due_date": "+240d"},
+        {"type": "GOAL", "target_amount": "500000", "deadline": "+240d", "priority": 1},
+        {"type": "RISK_CONSTRAINT", "min_liquidity": "100000", "reason": "wedding buffer"}
+      ],
+      "state": {"savings": 800000, "recurring_income": 75000},
+      "monthly_living_expense": 30000,
+      "expectations": {"must_be_feasible": true, "max_equity_pct": 0, "min_buffer_months": 1}
+    },
+    {
+      "id": "emergency_fund_18m",
+      "description": "Build a 3 lakh emergency corpus over 18 months",
+      "primitives": [
+        {"type": "GOAL", "target_amount": "300000", "deadline": "+540d", "priority": 1}
+      ],
+      "state": {"savings": 100000, "recurring_income": 60000},
+      "monthly_living_expense": 35000,
+      "expectations": {"must_be_feasible": true, "max_equity_pct": 20}
+    },
+    {
+      "id": "job_loss_buffer",
+      "description": "Income stops next month; keep a large liquid reserve",
+      "primitives": [
+        {"type": "INFLOW_CHANGE", "delta": "-60000", "cadence": "MONTHLY", "start": "+30d"},
+        {"type": "RISK_CONSTRAINT", "min_liquidity": "400000", "reason": "job loss reserve"},
+        {"type": "GOAL", "target_amount": "200000", "deadline": "+365d", "priority": 1}
+      ],
+      "state": {"savings": 600000, "recurring_income": 60000},
+      "monthly_living_expense": 30000,
+      "expectations": {"must_be_feasible": false}
+    },
+    {
+      "id": "recurring_medical",
+      "description": "Recurring care cost for 14 months plus a small goal",
+      "primitives": [
+        {"type": "RECURRING_OUTFLOW", "amount": "20000", "cadence": "MONTHLY", "start": "+30d", "end": "+450d"},
+        {"type": "GOAL", "target_amount": "150000", "deadline": "+420d", "priority": 2}
+      ],
+      "state": {"savings": 400000, "recurring_income": 80000},
+      "monthly_living_expense": 35000,
+      "expectations": {"must_be_feasible": true, "max_equity_pct": 20}
+    },
+    {
+      "id": "home_down_payment_3y",
+      "description": "15 lakh down payment in three years",
+      "primitives": [
+        {"type": "GOAL", "target_amount": "1500000", "deadline": "+1095d", "priority": 1}
+      ],
+      "state": {"savings": 300000, "recurring_income": 90000},
+      "monthly_living_expense": 40000,
+      "expectations": {"must_be_feasible": true, "must_shift_deadline": false}
+    },
+    {
+      "id": "impossible_car_6m",
+      "description": "30 lakh car in six months on a small income",
+      "primitives": [
+        {"type": "GOAL", "target_amount": "3000000", "deadline": "+180d", "priority": 1}
+      ],
+      "state": {"savings": 50000, "recurring_income": 40000},
+      "monthly_living_expense": 25000,
+      "expectations": {"must_be_feasible": false}
+    },
+    {
+      "id": "education_fee_2y",
+      "description": "4 lakh education fee in two years",
+      "primitives": [
+        {"type": "ONE_TIME_OUTFLOW", "amount": "400000", "due_date": "+730d"},
+        {"type": "GOAL", "target_amount": "400000", "deadline": "+730d", "priority": 1}
+      ],
+      "state": {"savings": 200000, "recurring_income": 70000},
+      "monthly_living_expense": 30000,
+      "expectations": {"must_be_feasible": true, "max_equity_pct": 20}
+    },
+    {
+      "id": "bonus_then_trip",
+      "description": "A bonus arrives, then a large trip",
+      "primitives": [
+        {"type": "ONE_TIME_INFLOW", "amount": "100000", "date": "+90d"},
+        {"type": "ONE_TIME_OUTFLOW", "amount": "250000", "due_date": "+150d"},
+        {"type": "GOAL", "target_amount": "250000", "deadline": "+150d", "priority": 2}
+      ],
+      "state": {"savings": 150000, "recurring_income": 65000},
+      "monthly_living_expense": 30000,
+      "expectations": {"must_be_feasible": true, "max_equity_pct": 0}
+    },
+    {
+      "id": "goal_with_horizon_shift",
+      "description": "A 6 lakh goal whose deadline the user already moved out",
+      "primitives": [
+        {"type": "GOAL", "target_amount": "600000", "deadline": "+300d", "priority": 1},
+        {"type": "HORIZON_SHIFT", "goal_ref": "main goal", "new_date": "+480d"}
+      ],
+      "state": {"savings": 200000, "recurring_income": 70000},
+      "monthly_living_expense": 35000,
+      "expectations": {"must_be_feasible": true, "must_shift_deadline": false}
+    },
+    {
+      "id": "emi_pressure",
+      "description": "EMI-heavy household aiming for 5 lakh in a year",
+      "primitives": [
+        {"type": "GOAL", "target_amount": "500000", "deadline": "+365d", "priority": 1}
+      ],
+      "state": {"savings": 100000, "recurring_income": 70000, "emis": [{"label": "loan", "amount": 25000, "remaining_months": 24}]},
+      "monthly_living_expense": 30000,
+      "expectations": {"must_be_feasible": false}
+    }
+  ]
+}

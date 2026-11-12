@@ -698,3 +698,41 @@ a `commit=` flag.
 
 Limitations: see "Layer 3d" (illustrative rates, US-centric FRED/SPY data,
 unverified regulatory corpus). Confidence is a heuristic, not a calibrated probability.
+
+---
+
+# Evaluation Harness — debate ON vs OFF
+
+`app/eval/`, `scripts/run_eval.py`, `eval/queries.sample.json`.
+
+- **Query** = hurdle primitives + optional state + optional `monthly_living_expense` +
+  labelled expectations `{must_be_feasible, max_equity_pct, min_buffer_months,
+  must_shift_deadline}`. Date fields accept `"+Nd"` (as_of + N days) so a dataset never
+  goes stale. `load_dataset` rejects malformed queries loudly (never drops one).
+- **Two arms, ONE snapshot**: each query builds a single evidence snapshot and one
+  leak-scanned `DebateContext`; both arms read it (their `snapshot_hash` is recorded and
+  asserted equal).
+  - *Debate ON* = the full pipeline (6 agents x 3 rounds, evidence-quality leader,
+    evaluator, optimizer, guardrails, confidence).
+  - *Debate OFF* = ONE generalist agent that sees **all** snapshot items; same
+    `Plan`/claims schema, same evaluator, optimizer, guardrails. Its confidence
+    "agreement" term is 1.0 (a lone agent cannot disagree), which flatters OFF.
+  - A hurdle the optimizer proves infeasible short-circuits both arms identically with no LLM call.
+- **Metrics per arm** (`app/eval/metrics.py`): hallucination_rate (pooled FACT claims,
+  3c definition; ON counts every valid turn of every round), plan feasibility rate (best
+  proposal feasible without repair), final feasible rate (after repair), policy-violation
+  rate (violating proposals / proposals), label agreement, mean confidence, failed
+  queries, LLM calls. Output = JSON + a Markdown table.
+- **No real LLM, no results**: without a configured provider the runner exits with code 2
+  unless `--dry-run`, which uses `ScriptedLLM` and stamps every output
+  `DRY RUN - not results`.
+- Eval creates hurdle rows labelled `eval:<id>` and evidence snapshots in the connected
+  database (debate runs are not persisted).
+
+```
+python scripts/run_eval.py --dry-run                                  # plumbing check only
+python scripts/run_eval.py --dataset eval/queries.sample.json --out eval/out.json   # real run
+```
+
+The 10 sample queries and their labels are **illustrative**; hand-label 30-50 before
+reporting any comparison. With so few queries the rates carry wide uncertainty.
