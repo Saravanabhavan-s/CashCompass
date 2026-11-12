@@ -688,7 +688,9 @@ confidence -> an **immutable** `recommendation` row.
 - **Confidence** in [0,1] = 0.30 x robustness (scenarios_feasible/3) + 0.25 x agreement
   + 0.25 x evidence quality of the agents behind the chosen plan + 0.20 x completeness
   (living expense given AND non-empty pool AND no failed turns; binary). The four
-  components are returned. LOW < 0.5, HIGH > 0.75.
+  components are returned. LOW < 0.5, HIGH > 0.75, **but the band is HIGH only when there
+  are no WARN findings and evidence quality >= 0.5**; otherwise a score above 0.75 is shown as
+  MEDIUM (`band_cap_reasons` says why; the number is unchanged).
 - **Human confirm**: `POST /recommendations/{id}/confirm {confirmed_by, acknowledge_warnings}`
   or `/reject {rejected_by, reason}`. BLOCK/INFEASIBLE -> 409; WARN findings or LOW
   confidence need `acknowledge_warnings=true` (else 409); a second decision -> 409

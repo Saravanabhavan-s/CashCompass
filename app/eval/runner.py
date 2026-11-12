@@ -214,7 +214,7 @@ def _run_off(q: EvalQuery, ctx: DebateContext, state: FinancialState, snapshot, 
         pool_empty=opening_pool(state) == 0,
         repaired=opt.status == "REPAIRED",
     )
-    conf = compute_confidence(ev.scenarios_feasible, 1.0, score, living is not None and opening_pool(state) != 0)
+    conf = compute_confidence(ev.scenarios_feasible, 1.0, score, living is not None and opening_pool(state) != 0, has_warn=g.needs_ack)
     return ArmResult(
         status="BLOCKED" if g.blocked else "OK",
         plan_feasible=opt.status == "FEASIBLE",

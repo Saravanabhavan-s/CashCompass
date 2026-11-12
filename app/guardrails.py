@@ -119,11 +119,15 @@ def _q(x: Decimal) -> Decimal:
     return x.quantize(_Q, rounding=ROUND_HALF_EVEN)
 
 
+MIN_EVIDENCE_FOR_HIGH = Decimal("0.5")
+
+
 class Confidence(BaseModel):
-    value: Decimal
+    value: Decimal  # the numeric score is never altered by the band cap
     band: str  # LOW | MEDIUM | HIGH
     components: dict[str, Decimal]  # raw 0-1 inputs
     weights: dict[str, Decimal] = WEIGHTS
+    band_cap_reasons: list[str] = []  # why a HIGH score was shown as MEDIUM
 
 
 def band_for(value: Decimal) -> str:
@@ -135,11 +139,19 @@ def band_for(value: Decimal) -> str:
 
 
 def compute_confidence(
-    scenarios_feasible: int, agreement: float | Decimal, evidence_quality: float | Decimal, complete: bool
+    scenarios_feasible: int,
+    agreement: float | Decimal,
+    evidence_quality: float | Decimal,
+    complete: bool,
+    has_warn: bool = False,
 ) -> Confidence:
     """0.30 x robustness (scenarios_feasible/3) + 0.25 x agreement +
     0.25 x evidence quality of the agents behind the plan + 0.20 x completeness
-    (inputs present AND no failed turns)."""
+    (inputs present AND no failed turns).
+
+    The numeric value is kept as is, but the BAND may be HIGH only if there are
+    no WARN findings (`has_warn`) and evidence_quality >= 0.5; otherwise a score
+    above 0.75 is shown as MEDIUM, with the reasons in `band_cap_reasons`."""
     raw = {
         "robustness": Decimal(scenarios_feasible) / Decimal(3),
         "agreement": Decimal(str(agreement)),
@@ -148,4 +160,12 @@ def compute_confidence(
     }
     value = _q(sum((WEIGHTS[k] * v for k, v in raw.items()), Decimal(0)))  # from unrounded inputs
     comps = {k: _q(v) for k, v in raw.items()}
-    return Confidence(value=value, band=band_for(value), components=comps)
+    band, reasons = band_for(value), []
+    if band == "HIGH":
+        if has_warn:
+            reasons.append("WARN_FINDINGS")
+        if raw["evidence_quality"] < MIN_EVIDENCE_FOR_HIGH:
+            reasons.append("LOW_EVIDENCE_QUALITY")
+        if reasons:
+            band = "MEDIUM"
+    return Confidence(value=value, band=band, components=comps, band_cap_reasons=reasons)

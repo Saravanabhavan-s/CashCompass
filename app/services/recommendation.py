@@ -272,7 +272,7 @@ def run_pipeline(
         repaired=opt.status == "REPAIRED",
     )
     complete = living is not None and not pool_empty and failed == 0
-    conf = compute_confidence(ev.scenarios_feasible, report.agreement, quality, complete)
+    conf = compute_confidence(ev.scenarios_feasible, report.agreement, quality, complete, has_warn=g.needs_ack)
     return Outcome(
         outcome="BLOCKED" if g.blocked else "RECOMMENDED",
         guardrails=g,

@@ -170,6 +170,7 @@ def test_warn_requires_acknowledgement(api, db_session, hid):
     rec = post_rec(api, hid, {}).json()  # no living expense -> INCOMPLETE_INPUT
     codes = [f["code"] for f in rec["guardrails"]["findings"]]
     assert "INCOMPLETE_INPUT" in codes and rec["guardrails"]["needs_ack"] and not rec["guardrails"]["blocked"]
+    assert rec["confidence_band"] != "HIGH"  # WARN findings cap the band
     assert confirm(api, rec["id"]).status_code == 409
     assert ledger_commitments(db_session) == []
     assert confirm(api, rec["id"], ack=True).status_code == 200

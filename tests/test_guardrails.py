@@ -107,7 +107,38 @@ def test_band_edges():
     # 0.5 exactly is MEDIUM (LOW is strictly < 0.5); 0.75 exactly is MEDIUM (HIGH is strictly > 0.75)
     assert compute_confidence(0, 1, 1, True).value == D("0.7000")  # 0.25 + 0.25 + 0.20
     assert compute_confidence(3, 1, 0, True).value == D("0.7500") and compute_confidence(3, 1, 0, True).band == "MEDIUM"
-    assert compute_confidence(3, 1, 0.04, True).value == D("0.7600") and compute_confidence(3, 1, 0.04, True).band == "HIGH"
+    assert compute_confidence(3, 1, 0.04, True).value == D("0.7600") and compute_confidence(3, 1, 0.04, True).band == "MEDIUM"  # capped: evidence < 0.5
+    assert compute_confidence(3, 1, 0.5, True).value == D("0.8750") and compute_confidence(3, 1, 0.5, True).band == "HIGH"
     assert compute_confidence(3, 0.5, 0.0, True).value == D("0.6250") and compute_confidence(3, 0.5, 0.0, True).band == "MEDIUM"
     assert compute_confidence(3, 0.0, 0.0, True).value == D("0.5000") and compute_confidence(3, 0.0, 0.0, True).band == "MEDIUM"
     assert compute_confidence(0, 1, 0.8, False).value == D("0.4500") and compute_confidence(0, 1, 0.8, False).band == "LOW"
+
+
+# ---- HIGH band cap ----------------------------------------------------------
+def test_high_band_when_no_warn_and_good_evidence():
+    c = compute_confidence(2, 0.8, 0.9, True, has_warn=False)
+    assert c.value == D("0.8250") and c.band == "HIGH" and c.band_cap_reasons == []
+
+
+def test_warn_findings_cap_high_at_medium_but_keep_the_number():
+    c = compute_confidence(2, 0.8, 0.9, True, has_warn=True)
+    assert c.value == D("0.8250") and c.band == "MEDIUM" and c.band_cap_reasons == ["WARN_FINDINGS"]
+
+
+def test_low_evidence_quality_caps_high_at_medium():
+    capped = compute_confidence(3, 1, 0.49, True)
+    assert capped.value == D("0.8725") and capped.band == "MEDIUM" and capped.band_cap_reasons == ["LOW_EVIDENCE_QUALITY"]
+    ok = compute_confidence(3, 1, 0.5, True)  # boundary: >= 0.5 is allowed
+    assert ok.band == "HIGH" and ok.band_cap_reasons == []
+
+
+def test_both_cap_reasons_reported():
+    c = compute_confidence(3, 1, 0.4, True, has_warn=True)
+    assert c.band == "MEDIUM" and c.band_cap_reasons == ["WARN_FINDINGS", "LOW_EVIDENCE_QUALITY"]
+
+
+def test_cap_never_touches_low_or_medium():
+    low = compute_confidence(0, 0, 0, False, has_warn=True)
+    assert low.band == "LOW" and low.band_cap_reasons == []
+    mid = compute_confidence(3, 0, 0, True, has_warn=True)  # 0.5
+    assert mid.band == "MEDIUM" and mid.band_cap_reasons == []
