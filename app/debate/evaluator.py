@@ -84,6 +84,7 @@ class ClaimScore(BaseModel):
     reasons: list[str]
     figure_grounding_ratio: float
     mean_source_weight: float | None = None
+    failed_figures: list[str] = []  # quoted figures not found in the CITED items
 
 
 class AgentScore(BaseModel):
@@ -129,6 +130,8 @@ class FlaggedClaim(BaseModel):
     text: str
     reasons: list[str]
     evidence_ids: list[str]
+    quoted_figures: list[str] = []  # everything the claim quoted
+    failed_figures: list[str] = []  # the subset NOT found in the cited items
 
 
 class Candidate(BaseModel):
@@ -269,6 +272,7 @@ def score_claim(claim: Claim, handle_map: Mapping[str, EvidenceRef]) -> ClaimSco
         reasons=e.reasons,
         figure_grounding_ratio=_f(e.ratio),
         mean_source_weight=_f(e.weight) if e.weight is not None else None,
+        failed_figures=e.failed,
     )
 
 
@@ -449,6 +453,8 @@ def evaluate_debate(result: DebateResult, ctx: DebateContext) -> EvaluationRepor
             text=c.text,
             reasons=_eval_claim(c, hm).reasons,
             evidence_ids=list(c.evidence_ids),
+            quoted_figures=list(c.quoted_figures),
+            failed_figures=_eval_claim(c, hm).failed,
         )
         for t in result.turns
         if t.output

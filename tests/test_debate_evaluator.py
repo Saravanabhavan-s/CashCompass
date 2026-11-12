@@ -483,3 +483,38 @@ def test_only_the_final_round_counts_for_diversity():
     earlier = _div_turns(4, rnd=1)  # fully copied, but not the final round
     rep = evaluate_debate(_manual_result(earlier + final, {"group_1": plan(), "group_2": plan()}), _ctx())
     assert rep.final_round == 2 and rep.low_diversity is False
+
+
+# ---- diagnostics: which quoted figures failed --------------------------------
+def test_score_claim_lists_failed_figures_in_quoted_order():
+    s = score_claim(C("FACT", ["E1"], ["3.5", "9.9", "520.10"]), HM)  # 3.5 ok; 9.9 nowhere; 520.10 only in E2
+    assert s.flagged and s.failed_figures == ["9.9", "520.10"]
+    assert s.reasons == ["ungrounded_figure", "misattributed_figure"]
+    assert score_claim(C("FACT", ["E1"], ["3.5"]), HM).failed_figures == []
+    assert score_claim(C("FACT"), HM).failed_figures == []  # flagged for another reason, nothing quoted
+    assert score_claim(C("INFERENCE", [], ["x"]), HM).failed_figures == []  # inference is never checked
+    # no known cited item: every quoted figure counts as failed
+    assert score_claim(C("FACT", ["E99"], ["3.5", "zzz"]), HM).failed_figures == ["3.5", "zzz"]
+
+
+def test_flagged_claims_in_the_report_carry_quoted_and_failed_figures():
+    bad = C("FACT", ["E1"], ["3.5", "9.9", "520.10"], text="mixed figures")
+    ok = C("FACT", ["E1"], ["3.5"], text="fine")
+    nofig = C("FACT", [], text="no cite, no figure")
+    turns = [_turn("group_1", Persona.SKEPTIC, [bad, ok, nofig], rnd=1)]
+    rep = evaluate_debate(_manual_result(turns, {"group_1": plan()}), _ctx())
+    by_text = {f.text: f for f in rep.flagged_claims}
+    assert set(by_text) == {"mixed figures", "no cite, no figure"}  # the clean claim is not listed
+    f = by_text["mixed figures"]
+    assert f.quoted_figures == ["3.5", "9.9", "520.10"] and f.failed_figures == ["9.9", "520.10"]
+    assert f.reasons == ["ungrounded_figure", "misattributed_figure"] and f.evidence_ids == ["E1"]
+    n = by_text["no cite, no figure"]
+    assert n.reasons == ["no_citation"] and n.quoted_figures == [] and n.failed_figures == []
+    EvaluationReport.model_validate(rep.model_dump(mode="json"))  # still round-trips
+
+
+def test_scripted_debate_report_lists_the_failed_figure(scripted_result):
+    ctx, res = scripted_result
+    rep = evaluate_debate(res, ctx)
+    opp = [f for f in rep.flagged_claims if f.persona == "opportunity_seeker"]
+    assert len(opp) == 3 and all(f.quoted_figures == ["999"] and f.failed_figures == ["999"] for f in opp)
