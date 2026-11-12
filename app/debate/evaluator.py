@@ -56,12 +56,21 @@ def _f(d: Decimal) -> float:
 
 
 _DASHES = str.maketrans({"–": "-", "—": "-", "−": "-"})  # en/em dash, minus -> '-'
+_CURRENCY = re.compile(r"₹|\brs\b\.?|\binr\b", re.IGNORECASE)  # rupee sign, Rs, Rs., INR
+_LAKH = re.compile(r"\b(?:lakhs?|lacs?)\b", re.IGNORECASE)
 
 
 def _norm(s: str) -> str:
-    """Whitespace/comma normalisation, plus dash variants (the banded case uses an
-    en dash, e.g. "5-6 lakh", which models routinely retype as a hyphen)."""
-    return re.sub(r"[\s,]+", "", s.translate(_DASHES))
+    """Normalise a figure / evidence text before the verbatim check:
+    - dash variants (en/em dash, minus) -> '-'  (the banded case prints "5-6 lakh" with an en dash)
+    - currency markers (rupee sign, Rs, Rs., INR; any case) are removed, so "Rs 5 lakh" == "5 lakh"
+    - "lakh", "lakhs", "lac", "lacs" -> "lakh"
+    - all whitespace and commas are removed, which also makes "6.5 %" == "6.5%"
+    Everything else stays case- and digit-sensitive: "6 lakh" never matches "5 lakh"."""
+    s = s.translate(_DASHES)
+    s = _CURRENCY.sub("", s)
+    s = _LAKH.sub("lakh", s)
+    return re.sub(r"[\s,]+", "", s)
 
 
 # ---- report models ---------------------------------------------------------

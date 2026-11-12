@@ -620,7 +620,8 @@ itself hallucinate). It scores every claim against the frozen snapshot.
   handle `C1` (source `CASE`, weight 1.0), so a statement like "goal of 5-6 lakh" can be
   cited and checked instead of being flagged as ungrounded. Statements about the user's
   own situation cite `C1`, external facts cite E-handles, a claim may cite both; figures
-  are checked against the union of the cited items' text (dash variants are normalised).
+  are checked against the union of the cited items' text (dash variants, currency markers `₹`/`Rs`/`Rs.`/`INR`, `lakh`=`lac`=`lakhs`, and whitespace/comma/`%` spacing
+  are normalised; digits stay exact, so "₹6 lakh" never matches "Rs 5 lakh").
   `C2` etc. are unknown handles. The report counts FACT claims citing C1, E-handles, both, neither.
 
 Not built here: optimizer, guardrails, recommendation endpoints, eval harness.

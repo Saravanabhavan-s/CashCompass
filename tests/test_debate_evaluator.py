@@ -90,6 +90,41 @@ def test_flag_ungrounded_figure_and_ratio():
     assert not score_claim(C("FACT", ["E1", "E2"], ["520.10"]), HM).flagged
 
 
+# ---- currency / unit normalisation -------------------------------------------
+@pytest.mark.parametrize(
+    "figure",
+    ["₹5 lakh", "₹ 5 lakh", "Rs 5 lakh", "Rs. 5 lakh", "Rs.5 lakh", "rs 5 lakh", "INR 5 lakh", "inr 5 lakh",
+     "5 lakh", "5 lac", "Rs 5 lacs", "₹5 Lakhs", "  Rs   5   lakh  "],
+)
+def test_currency_and_lakh_variants_ground_against_corpus_text(figure):
+    s = score_claim(C("FACT", ["E3"], [figure]), HM)  # E3: "... up to Rs 5 lakh per depositor per bank."
+    assert not s.flagged and s.figure_grounding_ratio == 1.0, figure
+
+
+@pytest.mark.parametrize("figure", ["₹6 lakh", "Rs 6 lakh", "INR 6 lakh", "6 lac", "₹50 lakh", "Rs 5 crore"])
+def test_different_amount_never_matches(figure):
+    s = score_claim(C("FACT", ["E3"], [figure]), HM)
+    assert s.flagged and s.reasons != [], figure
+
+
+def test_percent_spacing_is_tolerated():
+    ref = _ref(9, "FRED", "The policy rate was 6.5% p.a. and later 7 % p.a.")
+    hm = {"E9": ref}
+    for fig in ("6.5%", "6.5 %", "7%", "7 %", "7  %"):
+        assert not score_claim(C("FACT", ["E9"], [fig]), hm).flagged, fig
+    assert score_claim(C("FACT", ["E9"], ["6.6%"]), hm).flagged
+
+
+def test_rs_inside_a_word_is_not_stripped():
+    ref = _ref(8, "FRED", "Hours worked rose; RSI 5 noted.")
+    assert score_claim(C("FACT", ["E8"], ["Hours worked"]), {"E8": ref}).flagged is False  # 'rs' in 'Hours' untouched on both sides
+    assert score_claim(C("FACT", ["E8"], ["Houworked"]), {"E8": ref}).flagged is True
+
+
+def test_dash_normalisation_still_works():
+    assert not score_claim(C("FACT", ["C1"], ["Rs 5-6 lakh"]), HM).flagged  # case has an en dash and a rupee sign
+
+
 # ---- C1: the banded case as citable evidence --------------------------------
 def test_case_figure_present_and_citing_c1_is_grounded():
     s = score_claim(C("FACT", ["C1"], ["5-6 lakh"]), HM)  # hyphen typed; the case has an en dash
