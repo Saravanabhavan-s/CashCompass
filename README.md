@@ -691,6 +691,9 @@ confidence -> an **immutable** `recommendation` row.
   components are returned. LOW < 0.5, HIGH > 0.75, **but the band is HIGH only when there
   are no WARN findings and evidence quality >= 0.5**; otherwise a score above 0.75 is shown as
   MEDIUM (`band_cap_reasons` says why; the number is unchanged).
+- **Diversity**: if >= 50% of the final-round claims (whitespace/case-normalised) also appear
+  in another agent's claims, the debate may have converged by copying: the agreement
+  component is capped at 0.8 and an INFO finding `LOW_DIVERSITY` is added.
 - **Human confirm**: `POST /recommendations/{id}/confirm {confirmed_by, acknowledge_warnings}`
   or `/reject {rejected_by, reason}`. BLOCK/INFEASIBLE -> 409; WARN findings or LOW
   confidence need `acknowledge_warnings=true` (else 409); a second decision -> 409

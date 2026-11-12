@@ -142,3 +142,23 @@ def test_cap_never_touches_low_or_medium():
     assert low.band == "LOW" and low.band_cap_reasons == []
     mid = compute_confidence(3, 0, 0, True, has_warn=True)  # 0.5
     assert mid.band == "MEDIUM" and mid.band_cap_reasons == []
+
+
+# ---- LOW_DIVERSITY ----------------------------------------------------------
+def test_low_diversity_is_info_only():
+    rep = run_guardrails(low_diversity=True)
+    assert codes(rep, Severity.INFO) == ["LOW_DIVERSITY"] and not rep.blocked and not rep.needs_ack
+    assert "LOW_DIVERSITY" not in codes(run_guardrails(low_diversity=False))
+    assert "LOW_DIVERSITY" not in codes(run_guardrails())
+
+
+def test_low_diversity_caps_agreement_component_at_point_eight():
+    capped = compute_confidence(3, 1, 1, True, low_diversity=True)
+    assert capped.components["agreement"] == D("0.8000") and capped.value == D("0.9500")  # 0.30 + 0.20 + 0.25 + 0.20
+    free = compute_confidence(3, 1, 1, True, low_diversity=False)
+    assert free.components["agreement"] == D("1.0000") and free.value == D("1.0000")
+
+
+def test_cap_never_raises_a_lower_agreement():
+    c = compute_confidence(3, 0.6, 1, True, low_diversity=True)
+    assert c.components["agreement"] == D("0.6000")

@@ -236,7 +236,7 @@ def run_pipeline(
         return Outcome(
             outcome="INFEASIBLE",
             guardrails=run_guardrails(infeasible=True, living_expense_missing=living is None, pool_empty=pool_empty, failed_turns=failed),
-            confidence=compute_confidence(0, report.agreement, 0, False),
+            confidence=compute_confidence(0, report.agreement, 0, False, low_diversity=report.low_diversity),
             gap=opt.gap,
             citations=[],
             backing=[],
@@ -270,9 +270,10 @@ def run_pipeline(
         pool_empty=pool_empty,
         failed_turns=failed,
         repaired=opt.status == "REPAIRED",
+        low_diversity=report.low_diversity,
     )
     complete = living is not None and not pool_empty and failed == 0
-    conf = compute_confidence(ev.scenarios_feasible, report.agreement, quality, complete, has_warn=g.needs_ack)
+    conf = compute_confidence(ev.scenarios_feasible, report.agreement, quality, complete, has_warn=g.needs_ack, low_diversity=report.low_diversity)
     return Outcome(
         outcome="BLOCKED" if g.blocked else "RECOMMENDED",
         guardrails=g,

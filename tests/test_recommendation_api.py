@@ -44,6 +44,15 @@ def safe_responder(req):
     return reply(p, [fact(hs[:1]), inference()], summary=f"s-{req.tag['persona']}")
 
 
+def diverse_responder(req):
+    """Every agent says something different, every round."""
+    t = req.tag
+    hs = handles_in(req.prompt)
+    tag = f"{t['group']}-{t['persona']}-r{t['round']}"
+    p = plan(30, 70, 0, 0, rate=50, shift=0, buf=3)
+    return reply(p, [fact(hs[:1], text=f"fact by {tag}"), inference(f"inference by {tag}")], summary=f"s {tag}")
+
+
 def ungrounded_responder(req):
     return reply(plan(30, 70, 0, 0, rate=50, buf=3), [inference("only my opinion")], summary="s")
 
@@ -147,6 +156,22 @@ def test_full_flow_create_get_confirm(api, db_session, hid, llm):
     assert "Allocate 30% cash savings, 70% liquid fund" in e.description
     assert out["decision"]["ledger_entry_id"] == e.id
     assert rebuild_state_from_ledger(db_session) == state_before  # state changes only with real transactions
+
+
+def test_low_diversity_when_agents_copy_each_other(api, hid):
+    rec = post_rec(api, hid).json()  # safe_responder: every agent returns the same claim texts
+    infos = [f["code"] for f in rec["guardrails"]["findings"] if f["severity"] == "INFO"]
+    assert "LOW_DIVERSITY" in infos and not rec["guardrails"]["needs_ack"]
+    assert rec["confidence_components"]["agreement"] == "0.8000"  # identical plans (1.0) capped at 0.8
+    assert rec["evaluation"]["report"]["low_diversity"] is True and rec["evaluation"]["report"]["claim_redundancy"] == 1.0
+
+
+def test_no_low_diversity_when_agents_say_different_things(api, hid, llm):
+    llm._responder = diverse_responder
+    rec = post_rec(api, hid).json()
+    assert "LOW_DIVERSITY" not in [f["code"] for f in rec["guardrails"]["findings"]]
+    assert rec["confidence_components"]["agreement"] == "1.0000"
+    assert rec["evaluation"]["report"]["low_diversity"] is False and rec["evaluation"]["report"]["claim_redundancy"] == 0.0
 
 
 def test_reject_path(api, db_session, hid):

@@ -118,6 +118,30 @@ class Dissent(BaseModel):
     round_no: int
 
 
+LOW_DIVERSITY_AT = Decimal("0.5")
+
+
+def _norm_text(s: str) -> str:
+    return " ".join(s.lower().split())
+
+
+def claim_redundancy(turns: list[AgentTurn]) -> Decimal:
+    """Share of claims whose whitespace/case-normalised text also appears in at least
+    one OTHER agent's claims. Pass the final-round turns. Repeats inside one agent
+    do not count: only cross-agent copying signals a converged-by-copying debate."""
+    per_agent = [{_norm_text(c.text) for c in t.output.claims} for t in turns if t.output]
+    total = sum(len(t.output.claims) for t in turns if t.output)
+    if total == 0:
+        return Decimal(0)
+    shared = 0
+    for i, t in enumerate([t for t in turns if t.output]):
+        for c in t.output.claims:
+            text = _norm_text(c.text)
+            if any(text in per_agent[j] for j in range(len(per_agent)) if j != i):
+                shared += 1
+    return Decimal(shared) / Decimal(total)
+
+
 class CitationCounts(BaseModel):
     """FACT claims by what they cite: the user case (C1), snapshot evidence (E-handles), both, or nothing."""
 
@@ -138,6 +162,8 @@ class EvaluationReport(BaseModel):
     citations: CitationCounts
     flagged_claims: list[FlaggedClaim]
     agreement: float
+    claim_redundancy: float  # final round; see claim_redundancy()
+    low_diversity: bool  # redundancy >= 0.5 -> agreement is capped at 0.8 in confidence
     candidates: list[Candidate]
     unresolved_dissent: list[Dissent]
 
@@ -364,6 +390,8 @@ def evaluate_debate(result: DebateResult, ctx: DebateContext) -> EvaluationRepor
         pairs = [plan_distance(a, b) for i, a in enumerate(cons) for b in cons[i + 1:]]
         agreement = _f(Decimal(1) - Decimal(str(sum(pairs) / len(pairs))))
 
+    redundancy = claim_redundancy(final_turns)
+
     cands: dict[tuple, Candidate] = {}
 
     def add(plan: Plan, support: Decimal, origin: str):
@@ -392,6 +420,8 @@ def evaluate_debate(result: DebateResult, ctx: DebateContext) -> EvaluationRepor
         citations=citation_counts(result.turns),
         flagged_claims=flagged_claims,
         agreement=agreement,
+        claim_redundancy=_f(redundancy),
+        low_diversity=redundancy >= LOW_DIVERSITY_AT,
         candidates=candidates,
         unresolved_dissent=_unresolved_dissent(result, last),
     )

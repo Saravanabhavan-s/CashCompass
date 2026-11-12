@@ -1,6 +1,7 @@
 """Pure (no DB, no network) 3c tests: claim scoring, hallucination metrics,
 EvidenceQualitySelector, report assembly."""
 import json
+from decimal import Decimal as D
 
 import pytest
 
@@ -10,6 +11,7 @@ from app.debate.engine import UniformSelector, run_debate
 from app.debate.evaluator import (
     EvaluationReport,
     EvidenceQualitySelector,
+    claim_redundancy,
     evaluate_debate,
     hallucination_metrics,
     score_agent,
@@ -334,3 +336,44 @@ def test_unresolved_dissent_rule():
         ("group_1", "skeptic", "contrarian"),
         ("group_2", "contrarian", "saver"),
     ]
+
+
+# ---- diversity --------------------------------------------------------------
+def _div_turns(shared_by: int, rnd: int = 1):
+    """4 agents x 2 claims; the first claim is the same text (differently cased/spaced) for `shared_by` agents."""
+    texts = ["Shared  Claim", "shared claim", "SHARED CLAIM", "SHARED	claim"]
+    pers = [S, SAV, LH, OPP]
+    turns = []
+    for i, p in enumerate(pers):
+        first = texts[i] if i < shared_by else f"unique opener {i}"
+        turns.append(_turn("group_1" if i < 2 else "group_2", p, [C("INFERENCE", text=first), C("INFERENCE", text=f"own point {i}")], rnd=rnd))
+    return turns
+
+
+def test_claim_redundancy_counts_cross_agent_copies_after_normalisation():
+    assert claim_redundancy(_div_turns(4)) == D("0.5")  # 4 of 8 claims are copies
+    assert claim_redundancy(_div_turns(3)) == D("0.375")  # 3 of 8
+    assert claim_redundancy(_div_turns(1)) == D(0)  # a lone claim is not a copy
+    assert claim_redundancy([]) == D(0)
+
+
+def test_repeats_inside_one_agent_are_not_redundancy():
+    t = _turn("g", S, [C("INFERENCE", text="same"), C("INFERENCE", text="Same")])
+    assert claim_redundancy([t]) == D(0)
+
+
+def test_low_diversity_flag_at_the_half_boundary():
+    def report(shared_by):
+        turns = _div_turns(shared_by)
+        return evaluate_debate(_manual_result(turns, {"group_1": plan(), "group_2": plan()}), _ctx())
+
+    at, below = report(4), report(3)
+    assert at.claim_redundancy == 0.5 and at.low_diversity is True  # >= 50% triggers
+    assert below.claim_redundancy == 0.375 and below.low_diversity is False
+
+
+def test_only_the_final_round_counts_for_diversity():
+    final = _div_turns(1, rnd=2)  # diverse
+    earlier = _div_turns(4, rnd=1)  # fully copied, but not the final round
+    rep = evaluate_debate(_manual_result(earlier + final, {"group_1": plan(), "group_2": plan()}), _ctx())
+    assert rep.final_round == 2 and rep.low_diversity is False

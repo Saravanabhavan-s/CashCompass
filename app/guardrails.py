@@ -68,6 +68,7 @@ def run_guardrails(
     pool_empty: bool = False,
     failed_turns: int = 0,
     repaired: bool = False,
+    low_diversity: bool = False,
 ) -> GuardrailReport:
     f: list[Finding] = []
     B, W, I = Severity.BLOCK, Severity.WARN, Severity.INFO
@@ -95,6 +96,8 @@ def run_guardrails(
         f.append(Finding(code="INCOMPLETE_INPUT", severity=W, message="; ".join(missing)))
     if failed_turns > 0:
         f.append(Finding(code="DEGRADED_DEBATE", severity=W, message=f"{failed_turns} agent turn(s) failed and were excluded."))
+    if low_diversity:
+        f.append(Finding(code="LOW_DIVERSITY", severity=I, message="Half or more of the final-round claims are identical across agents; agreement is capped at 0.8 because the debate may have converged by copying."))
     if repaired:
         f.append(Finding(code="PLAN_REPAIRED", severity=I, message="No debated plan was feasible; the optimizer adjusted the nearest feasible plan."))
 
@@ -120,6 +123,7 @@ def _q(x: Decimal) -> Decimal:
 
 
 MIN_EVIDENCE_FOR_HIGH = Decimal("0.5")
+LOW_DIVERSITY_AGREEMENT_CAP = Decimal("0.8")
 
 
 class Confidence(BaseModel):
@@ -144,17 +148,21 @@ def compute_confidence(
     evidence_quality: float | Decimal,
     complete: bool,
     has_warn: bool = False,
+    low_diversity: bool = False,
 ) -> Confidence:
     """0.30 x robustness (scenarios_feasible/3) + 0.25 x agreement +
     0.25 x evidence quality of the agents behind the plan + 0.20 x completeness
     (inputs present AND no failed turns).
+
+    When the debate shows LOW_DIVERSITY the agreement component is capped at 0.8
+    (identical claims are copying, not independent agreement).
 
     The numeric value is kept as is, but the BAND may be HIGH only if there are
     no WARN findings (`has_warn`) and evidence_quality >= 0.5; otherwise a score
     above 0.75 is shown as MEDIUM, with the reasons in `band_cap_reasons`."""
     raw = {
         "robustness": Decimal(scenarios_feasible) / Decimal(3),
-        "agreement": Decimal(str(agreement)),
+        "agreement": min(Decimal(str(agreement)), LOW_DIVERSITY_AGREEMENT_CAP) if low_diversity else Decimal(str(agreement)),
         "evidence_quality": Decimal(str(evidence_quality)),
         "completeness": Decimal(1) if complete else Decimal(0),
     }
