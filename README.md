@@ -617,3 +617,42 @@ itself hallucinate). It scores every claim against the frozen snapshot.
   else in all groups; resolved if any of them moved.
 
 Not built here: optimizer, guardrails, recommendation endpoints, eval harness.
+
+---
+
+# Layer 3d — Deterministic Optimizer and Real Feasibility
+
+`app/optimizer/`. Decimal-only, no LLM: the debate argued strategy, this computes.
+Exact amounts reach this layer (OPTIMIZER egress) and the user's own view only.
+
+- **Model** (`projection.py`, module docstring is the spec): monthly steps from
+  `as_of`, capped at 120. Opening pool = `savings + liquid_cash` (falls back to
+  `cash`; stocks are excluded). surplus = income - fixed outflows; saved =
+  `max(surplus, 0) x saving_rate`; a negative surplus drains the pool. One-time
+  flows land in their month; a GOAL is met if the pool *before* that month's
+  outflows is >= target. `HORIZON_SHIFT` + `plan.deadline_shift_months` move goal
+  deadlines and the outflows that share the goal's original date (goals have no
+  ids, so a HORIZON_SHIFT applies to all goals). Withdrawals drain CASH, LIQUID,
+  FD (3% exit penalty), EQUITY. Liquidity floor = max(RISK_CONSTRAINTs,
+  buffer_months x fixed outflow), measured on CASH + LIQUID.
+- **Scenarios**: BASE, MARKET_STRESS (EQUITY -30% the month before the first
+  deadline), INCOME_STRESS (income x 0.7). `PlanEvaluation.scenarios_feasible` is 0-3.
+- **Hard policy** (`policy.py`): EQUITY must be 0 if the first goal is < 12 months
+  away and <= 20% if < 36. Violators are rejected (`violates_policy:*`), never ranked.
+- **Ranking**: scenarios_feasible desc, goal_shortfall asc, deadline shift asc,
+  debate support desc, terminal pool desc, `Plan.key()`.
+- **Repair search**: if no debated candidate is base-feasible and policy-clean, the
+  lever grid is searched for the least-change feasible plan (`plan_distance`).
+- **Feasibility** (`assess_feasibility`): the best-case plan (100% saving, policy-clean,
+  12-month shift) decides INFEASIBLE and returns the quantified gap: extra monthly
+  saving (whole rupees, no delay) and months of delay needed. `quick_feasibility_check`
+  wraps it and returns a bool; `run_evidence_pipeline` still ignores the bool
+  (blocking is Layer 3e's job).
+
+## Known limitations (read before trusting any number)
+
+- All rates are **illustrative defaults** (CASH 3%, LIQUID 6%, FD 6.5%, EQUITY 11%):
+  replace with verified rates. Every evaluation lists this in `assumptions_used`.
+- Without `monthly_living_expense` the surplus is an upper bound (also listed).
+- FRED and SPY/INDA evidence is US data; the regulatory corpus is an orientation
+  summary not yet verified against primary sources.
