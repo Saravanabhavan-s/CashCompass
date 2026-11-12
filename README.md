@@ -538,3 +538,48 @@ is the debate's job in 3b/3c, not retrieval's.
 
 No debate engine, no persona reasoning, no meta-evaluator, no real feasibility
 logic, no combination of evidence with user state, no live-API test dependency.
+
+---
+
+# Layer 3b — Debate Engine (G-DMAD)
+
+`app/debate/` runs a Group-DMAD debate over the frozen 3a evidence snapshot:
+2 groups (`DEBATE_GROUPS`) x 3 personas x 3 rounds, temperature 0.3 (all in
+`DebateConfig`). The LLM argues strategy; deterministic code computes.
+
+- **Decision space** (`Plan`): integer allocation over CASH_SAVINGS / LIQUID_FUND /
+  FIXED_DEPOSIT / EQUITY_INDEX summing to exactly 100, `monthly_saving_rate`
+  0-100, `deadline_shift_months` 0-12, `emergency_buffer_months` 0-12. Agents
+  also emit 1-6 `FACT`/`INFERENCE` claims (evidence handles + quoted figures),
+  up to 4 rebuttals, and a summary.
+- **Protocol** (G-DMAD Alg. 1): round 1 independent; round r>1 each agent sees its
+  own and its group-mates' previous answers plus the *leader group's* consensus
+  plan and top claims (cited evidence is appended to every pack). No direct
+  cross-group chat. Persona briefs are frozen across rounds (`PROMPT_VERSION`
+  hashes all templates and briefs).
+- **Retrieval**: each agent's pack = snapshot items whose `lens_tags` include its
+  persona. Handles `E1..En` follow the snapshot's canonical order, so equal
+  `snapshot_hash` => identical evidence and handles.
+- **Leader selection** is pluggable (`LeaderSelector`), called after every
+  round. `UniformSelector` (default) = unweighted consensus, most valid agents
+  leads. 3c supplies the evidence-weighted one.
+- **Aggregation** (`aggregate_plans`): weighted mean allocation rounded to
+  multiples of 5 by largest remainder (sums to exactly 100); weighted (lower)
+  median for the other levers; `plan_distance` in 0..1.
+- **Privacy**: `build_debate_context` projects state and primitives through
+  `apply_egress(DEBATE_AGENT)`, then leak-scans the finished case against the
+  exact source values (and label / raw_description / risk reasons as forbidden
+  substrings). Any hit raises `DebateInputLeak`; nothing is sent.
+- **Fail closed**: invalid JSON gets exactly one repair retry that quotes the
+  validation error; still invalid => turn recorded as failed, excluded,
+  `result.degraded = True`. A round with zero valid outputs raises
+  `DebateFailed`. `LLM_PROVIDER=none` (default) raises `LLMNotConfigured`.
+- **Persistence**: `debate_run` / `debate_turn` (migration 004), append-only via
+  ORM guard + Postgres trigger. `save_debate_run`, `load_debate_result`.
+- **Deviations**: `debate_run.degraded` and `debate_turn.seq` columns added
+  (needed for a faithful round-trip); Anthropic/Ollama clients are not covered by
+  tests (tests never touch network or a real model).
+
+Run one real debate: set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`,
+optionally `LLM_MODEL`; or `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, `LLM_MODEL`
+(see `.env.example`), then `run_debate(ctx, get_llm_client())`.

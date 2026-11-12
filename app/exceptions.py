@@ -53,3 +53,22 @@ class EvidenceSourceError(RuntimeError):
     """A live evidence source (Alpha Vantage, FRED) returned an error, a
     rate-limit notice, or nothing usable. Raised instead of returning an empty
     result so a failed call can never be mistaken for "no evidence"."""
+
+
+class LLMError(RuntimeError):
+    """An LLM provider call failed (transport, HTTP status, malformed body).
+    Messages never contain credentials."""
+
+
+class LLMNotConfigured(LLMError):
+    """No usable LLM provider is configured. Fail closed: never fall back to
+    a fake answer."""
+
+
+class DebateFailed(RuntimeError):
+    """A debate round produced zero valid agent outputs."""
+
+
+class DebateInputLeak(EgressPolicyViolation):
+    """The leak scanner found user data in the finished debate case. Nothing
+    was sent to any model."""

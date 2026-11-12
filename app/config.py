@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/cashcompass"
+    database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/cashcompass"
 
     # --- Layer 2: PII vault ---
     default_tenant_id: str = "default"
@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     evidence_cache_path: str = ".cache/evidence_cache.sqlite"  # live-mode dev cache only
     alpha_vantage_api_key: SecretStr = SecretStr("")
     fred_api_key: SecretStr = SecretStr("")
+
+    # --- Layer 3b: debate LLM ---
+    llm_provider: Literal["none", "anthropic", "ollama"] = "none"
+    llm_model: str = "claude-sonnet-5-5"
+    anthropic_api_key: SecretStr = SecretStr("")
+    ollama_base_url: str = "http://localhost:11434"
+    llm_timeout_s: float = 120.0
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
