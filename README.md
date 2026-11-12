@@ -633,6 +633,12 @@ itself hallucinate). It scores every claim against the frozen snapshot.
   `fabrication_rate + misattribution_rate == hallucination_rate`. `HIGH_HALLUCINATION` triggers on
   the strict rate and its message shows the split.
 
+- **Source labels**: every evidence line in a prompt carries a human-readable label from
+  `app/evidence/labels.py` (`SERIES_LABELS`, one entry per FRED series / Alpha Vantage symbol used in
+  `lenses.py`), e.g. "FRED DGS1 = US 1-year Treasury yield (a US government bond yield, NOT an Indian
+  bank FD rate)", plus the rule "Do not describe a source as something it is not". Labels are
+  presentation only: snapshot content and `snapshot_hash` are unchanged (pinned in a test).
+
 Not built here: optimizer, guardrails, recommendation endpoints, eval harness.
 
 ---

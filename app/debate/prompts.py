@@ -12,6 +12,7 @@ import json
 
 from app.debate.context import DebateContext, EvidenceRef
 from app.debate.schemas import AgentOutput, LeaderDecision
+from app.evidence.labels import label_for
 from app.evidence.personas import Persona
 
 SYSTEM_TEMPLATE = """You are one participant in a structured financial-planning debate.
@@ -23,6 +24,7 @@ Rules:
 - All user figures are coarse bands. Do not try to infer exact amounts.
 - Use ONLY the numbered evidence items (E1, E2, ...) and the user case [C1] you are shown. Do not rely on outside knowledge for FACT claims.
 - Statements about the user's own situation cite C1 (the user case below); external facts cite E-handles; a claim may cite both.
+- Do not describe a source as something it is not: every evidence line carries a label saying what the source is (a US Treasury yield is not an Indian bank FD rate; a US-listed ETF is not an Indian index).
 - A FACT claim must cite at least one evidence handle in evidence_ids, and every number in quoted_figures must appear verbatim in a cited item.
 - An INFERENCE claim is your own reasoning; label it INFERENCE and do not present it as sourced.
 - Reply with ONE JSON object and nothing else."""
@@ -125,7 +127,8 @@ def prompt_hash(system: str, prompt: str) -> str:
 
 
 def _render_item(i: EvidenceRef) -> str:
-    return f"[{i.handle}] source={i.source} citation={i.citation}\n{i.content.strip()}"
+    # The label is presentation only: it is not part of the stored snapshot or its hash.
+    return f"[{i.handle}] source={i.source} | {label_for(i.source, i.query)} | citation={i.citation}\n{i.content.strip()}"
 
 
 def evidence_pack(ctx: DebateContext, persona: Persona, extra_handles: set[str] | frozenset[str] = frozenset()) -> list[EvidenceRef]:
