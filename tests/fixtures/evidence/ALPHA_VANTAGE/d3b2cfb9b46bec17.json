@@ -1,0 +1,11 @@
+{
+  "source": "ALPHA_VANTAGE",
+  "query": "function=TIME_SERIES_MONTHLY&symbol=SPY",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "SPY monthly closes (latest 12): 2026-11-11=759.8100, 2026-10-30=755.7200, 2026-09-30=762.6300, 2026-08-31=767.0500, 2026-07-31=747.0300, 2026-06-30=746.7700, 2026-05-29=756.4800, 2026-04-30=718.6600, 2026-03-31=650.3400, 2026-02-27=685.9900, 2026-01-30=691.9700, 2025-12-31=681.9200",
+      "citation": "https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol=SPY"
+    }
+  ]
+}

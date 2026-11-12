@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "recent changes revisions CPI inflation methodology",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# Market risk and measurement notes\n\nMarket downturn risk warning: equity and debt markets can fall sharply and remain depressed for years; past returns do not guarantee future returns. SEBI regulation mutual fund returns disclosure verification: SEBI requires standardised performance disclosure and risk-o-meter labels for mutual funds. Recent changes revisions CPI inflation methodology: consumer price index base years and weights are revised periodically, which affects comparability of inflation series.\n",
+      "citation": "local:market_risk_notes@2026.10-v1"
+    },
+    {
+      "content": "# Public Provident Fund and small savings\n\nPPF guaranteed return small savings: Public Provident Fund has a 15 year tenure, deposits of Rs 500 to Rs 1.5 lakh a year, sovereign guaranteed return, and qualifies for Section 80C tax saving under the old regime. The rate is notified by the Government of India every quarter. Recent changes revisions small savings scheme rate: quarterly notifications can hold, raise or cut rates; always check the latest Ministry of Finance notification. Partial withdrawal allowed from the 7th financial year.\n",
+      "citation": "local:ppf_rules@2026.10-v1"
+    }
+  ]
+}

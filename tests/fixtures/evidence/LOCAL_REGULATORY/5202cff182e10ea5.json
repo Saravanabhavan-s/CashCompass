@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "emergency fund months of expenses before investing",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# Emergency fund planning norms\n\nEmergency fund months of expenses sizing: common planning guidance is 3 to 6 months of essential expenses, 6 to 12 months for single-income households or irregular income. This is practitioner guidance, not regulation. Emergency fund months of expenses before investing: build the buffer before taking market risk. Job loss: hold the buffer in instruments with same-day or next-day access such as savings accounts, sweep-in fixed deposit and liquid funds. Guaranteed return fixed deposit emergency corpus ladders can be used for the portion not needed immediately.\n",
+      "citation": "local:emergency_fund_norms@2026.10-v1"
+    },
+    {
+      "content": "# Liquid fund terms\n\nLiquid fund exit load redemption withdrawal: SEBI rules require liquid funds to hold securities maturing within 91 days. Graded exit load applies on redemption within 7 days of purchase and is nil after that. Redemption usually settles T+1 and instant redemption facilities are capped. Liquid fund SEBI rules still valid: categorisation norms were issued in 2017 and amended since; verify on sebi.gov.in. Liquid fund yield versus savings account: liquid funds have often yielded more than savings accounts but returns are not guaranteed. Liquid fund risk credit risk debt fund warning: debt funds carry credit and interest rate risk and are not covered by deposit insurance.\n",
+      "citation": "local:liquid_fund_terms@2026.10-v1"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "fixed deposit real return after inflation tax TDS",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# Income tax: 80C, TDS and capital gains\n\nTax saving 80C: Section 80C allows deductions up to Rs 1.5 lakh a year under the old regime for PPF, ELSS and tax saver fixed deposits. Fixed deposit real return after inflation tax TDS: interest is taxed at slab rate and banks deduct TDS above the annual threshold, so real return after inflation can be thin or negative. Equity long term capital gains tax growth: long term gains on listed equity are taxed at a concessional rate above an annual exemption; rates have changed in recent Budgets, so verify the current rate.\n",
+      "citation": "local:income_tax_80c_tds@2026.10-v1"
+    },
+    {
+      "content": "# Emergency fund planning norms\n\nEmergency fund months of expenses sizing: common planning guidance is 3 to 6 months of essential expenses, 6 to 12 months for single-income households or irregular income. This is practitioner guidance, not regulation. Emergency fund months of expenses before investing: build the buffer before taking market risk. Job loss: hold the buffer in instruments with same-day or next-day access such as savings accounts, sweep-in fixed deposit and liquid funds. Guaranteed return fixed deposit emergency corpus ladders can be used for the portion not needed immediately.\n",
+      "citation": "local:emergency_fund_norms@2026.10-v1"
+    }
+  ]
+}

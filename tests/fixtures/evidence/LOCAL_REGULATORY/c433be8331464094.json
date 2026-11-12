@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "guaranteed return fixed deposit emergency corpus",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# Emergency fund planning norms\n\nEmergency fund months of expenses sizing: common planning guidance is 3 to 6 months of essential expenses, 6 to 12 months for single-income households or irregular income. This is practitioner guidance, not regulation. Emergency fund months of expenses before investing: build the buffer before taking market risk. Job loss: hold the buffer in instruments with same-day or next-day access such as savings accounts, sweep-in fixed deposit and liquid funds. Guaranteed return fixed deposit emergency corpus ladders can be used for the portion not needed immediately.\n",
+      "citation": "local:emergency_fund_norms@2026.10-v1"
+    },
+    {
+      "content": "# RBI fixed and recurring deposit basics\n\nFixed deposit and recurring deposit interest rate guaranteed return: banks set deposit rates themselves under RBI directions on interest rates on deposits; the rate is fixed for the tenure. RBI fixed deposit rate regulation source is the Master Direction on Interest Rate on Deposits. Premature withdrawal penalty: banks typically levy 0.5 to 1 percent lower rate on premature closure. Sweep-in fixed deposit emergency corpus linked to savings accounts gives guaranteed return with partial withdrawal flexibility. Senior citizens usually receive an extra 0.25 to 0.50 percent. Interest is taxable; verify rates with the bank.\n",
+      "citation": "local:rbi_fd_rd_basics@2026.10-v1"
+    }
+  ]
+}

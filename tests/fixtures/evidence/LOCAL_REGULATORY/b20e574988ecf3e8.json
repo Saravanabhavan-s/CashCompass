@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "fixed deposit premature withdrawal penalty",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# RBI fixed and recurring deposit basics\n\nFixed deposit and recurring deposit interest rate guaranteed return: banks set deposit rates themselves under RBI directions on interest rates on deposits; the rate is fixed for the tenure. RBI fixed deposit rate regulation source is the Master Direction on Interest Rate on Deposits. Premature withdrawal penalty: banks typically levy 0.5 to 1 percent lower rate on premature closure. Sweep-in fixed deposit emergency corpus linked to savings accounts gives guaranteed return with partial withdrawal flexibility. Senior citizens usually receive an extra 0.25 to 0.50 percent. Interest is taxable; verify rates with the bank.\n",
+      "citation": "local:rbi_fd_rd_basics@2026.10-v1"
+    },
+    {
+      "content": "# DICGC deposit insurance\n\nDICGC deposit insurance limit: the Deposit Insurance and Credit Guarantee Corporation insures bank deposits (savings, fixed deposit, recurring deposit, current) up to Rs 5 lakh per depositor per bank, principal and interest combined. Cover is per bank, not per branch. Fixed deposit and recurring deposit balances count toward the same limit. Source: DICGC Act 1961 as amended 2021; verify current limit at dicgc.org.in.\n",
+      "citation": "local:dicgc_deposit_insurance@2026.10-v1"
+    }
+  ]
+}

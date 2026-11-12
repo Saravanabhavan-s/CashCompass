@@ -1,0 +1,15 @@
+{
+  "source": "LOCAL_REGULATORY",
+  "query": "emergency fund months of expenses sizing job loss",
+  "recorded_at": "2026-11-12T00:00:00+00:00",
+  "items": [
+    {
+      "content": "# Emergency fund planning norms\n\nEmergency fund months of expenses sizing: common planning guidance is 3 to 6 months of essential expenses, 6 to 12 months for single-income households or irregular income. This is practitioner guidance, not regulation. Emergency fund months of expenses before investing: build the buffer before taking market risk. Job loss: hold the buffer in instruments with same-day or next-day access such as savings accounts, sweep-in fixed deposit and liquid funds. Guaranteed return fixed deposit emergency corpus ladders can be used for the portion not needed immediately.\n",
+      "citation": "local:emergency_fund_norms@2026.10-v1"
+    },
+    {
+      "content": "# Unemployment support schemes\n\nUnemployment benefit scheme still valid eligibility revisions: the Employees State Insurance Corporation runs an unemployment allowance for insured persons (Atal Beemit Vyakti Kalyan Yojana), paying a share of average wages for a limited period after involuntary job loss, with contribution-history eligibility. Scheme terms, relaxations and sunset dates have been revised; verify with ESIC before relying on it. Provident fund partial withdrawal after job loss is a separate income smoothing option.\n",
+      "citation": "local:unemployment_support@2026.10-v1"
+    }
+  ]
+}
