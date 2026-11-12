@@ -583,3 +583,37 @@ logic, no combination of evidence with user state, no live-API test dependency.
 Run one real debate: set `LLM_PROVIDER=anthropic`, `ANTHROPIC_API_KEY`,
 optionally `LLM_MODEL`; or `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, `LLM_MODEL`
 (see `.env.example`), then `run_debate(ctx, get_llm_client())`.
+
+---
+
+# Layer 3c — Evidence-Quality Meta-Evaluator
+
+`app/debate/evaluator.py`. Fully deterministic -- no LLM judge (a judge model can
+itself hallucinate). It scores every claim against the frozen snapshot.
+
+- **FACT claim** is a hallucination (score 0) if it has `no_citation`, an
+  `unknown_handle`, or an `ungrounded_figure` (a quoted figure not found
+  verbatim, after whitespace/comma normalisation, in any cited item). Otherwise
+  score = mean source weight of the distinct cited items (FRED 1.0,
+  LOCAL_REGULATORY 1.0, ALPHA_VANTAGE 0.8) x figure-grounding ratio. The ratio is
+  always reported; for unflagged claims it is necessarily 1.
+- **INFERENCE** claims get a fixed 0.3 and are never hallucinations.
+- Agent score = mean claim score; group score = mean agent score (valid agents).
+- `hallucination_rate` = flagged FACT / total FACT over all valid turns, with
+  per-round and per-persona breakdowns and raw counts (0.0 with no FACT claims).
+- `EvidenceQualitySelector` (plugs into `run_debate(..., selector=...)`): weights
+  = agent scores, consensus = `aggregate_plans(plans, weights)`, leader =
+  highest group score. Tie -> consensus closer (`plan_distance`) to the other
+  group(s), then configured order. With exactly two groups that distance is
+  symmetric, so a two-group tie is always decided by configured order.
+- `evaluate_debate(result, ctx) -> EvaluationReport` (JSON-serialisable): agent and
+  group scores, hallucination metrics, flagged claims with reasons, agreement
+  (1 - distance between final group consensuses), deduped candidate plans (each
+  group's consensus + every valid final-round agent plan) with `support`, and
+  `unresolved_dissent`.
+- **unresolved_dissent (simple rule)**: a last-round rebuttal by SKEPTIC or
+  CONTRARIAN is unresolved if its target persona did not change its plan (any
+  lever) since the previous round. Targets are searched in the rebutter's group,
+  else in all groups; resolved if any of them moved.
+
+Not built here: optimizer, guardrails, recommendation endpoints, eval harness.
