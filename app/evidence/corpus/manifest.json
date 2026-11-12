@@ -1,0 +1,50 @@
+{
+  "version": "2026.10-v1",
+  "docs": [
+    {
+      "id": "dicgc_deposit_insurance",
+      "title": "DICGC deposit insurance",
+      "file": "dicgc_deposit_insurance.md"
+    },
+    {
+      "id": "rbi_fd_rd_basics",
+      "title": "RBI fixed and recurring deposit basics",
+      "file": "rbi_fd_rd_basics.md"
+    },
+    {
+      "id": "ppf_rules",
+      "title": "Public Provident Fund and small savings",
+      "file": "ppf_rules.md"
+    },
+    {
+      "id": "liquid_fund_terms",
+      "title": "Liquid fund terms",
+      "file": "liquid_fund_terms.md"
+    },
+    {
+      "id": "income_tax_80c_tds",
+      "title": "Income tax: 80C, TDS and capital gains",
+      "file": "income_tax_80c_tds.md"
+    },
+    {
+      "id": "emergency_fund_norms",
+      "title": "Emergency fund planning norms",
+      "file": "emergency_fund_norms.md"
+    },
+    {
+      "id": "unemployment_support",
+      "title": "Unemployment support schemes",
+      "file": "unemployment_support.md"
+    },
+    {
+      "id": "market_risk_notes",
+      "title": "Market risk and measurement notes",
+      "file": "market_risk_notes.md"
+    },
+    {
+      "id": "dpdp_act_excerpt",
+      "title": "DPDP Act 2023 excerpt",
+      "file": "dpdp_act_excerpt.md"
+    }
+  ]
+}

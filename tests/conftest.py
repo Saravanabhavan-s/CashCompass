@@ -32,6 +32,7 @@ os.environ.setdefault("VAULT_KEKS", json.dumps({"1": _b64(b"\x01" * 32), "2": _b
 os.environ.setdefault("VAULT_KEK_VERSION", "1")
 os.environ.setdefault("VAULT_HSK", _b64(b"\x03" * 32))
 os.environ.setdefault("VAULT_ADMIN_KEY", "test-admin-key")
+os.environ["EVIDENCE_MODE"] = "fixture"  # Layer 3a: tests never hit live APIs
 os.environ.setdefault("DEFAULT_TENANT_ID", "default")
 os.environ.setdefault("VAULT_DETOKENIZE_ALLOWED_CALLERS", "test-caller,demo-user")
 
@@ -92,7 +93,7 @@ def clean_tables(db_engine):
     with db_engine.connect() as conn:
         conn.execute(
             text(
-                "TRUNCATE TABLE detokenization_audit, vault_entries, "
+                "TRUNCATE TABLE evidence_item, evidence_snapshot, detokenization_audit, vault_entries, "
                 "sensitive_profile, ledger_entry, hurdle CASCADE"
             )
         )

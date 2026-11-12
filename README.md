@@ -428,6 +428,113 @@ systems: what a payload contains is not a single fact, it's a function of
 ## Explicit non-goals
 
 No LLM calls. No debate agents or personas. No optimizer/solver. No evidence
-retrieval. `decompose()` remains a stub. `EgressPolicy.apply(payload,
+retrieval (added later in Layer 3a, below). `decompose()` remains a stub. `EgressPolicy.apply(payload,
 DEBATE_AGENT)` is the clean seam Layer 3 will consume — this layer builds to
 that interface and stops there.
+
+# Layer 3a — Evidence Snapshot Service
+
+Builds the evidence pipeline Layer 3b (the debate) will consume:
+primitives -> evidence questions -> persona query lenses -> source adapters ->
+canonicalize -> sha256 -> append-only snapshot. No LLM, no debate, no
+optimizer.
+
+## Why retrieval freezes before debate
+
+Retrieval fires ONCE per hurdle, BEFORE any debate round, and is then frozen.
+Agents in 3b read only from the frozen snapshot; they never call a live source
+mid-debate. If retrieval were live during rounds, the debate-ON and debate-OFF
+evaluation arms would see different evidence and the hallucination-rate
+comparison would be invalid. `snapshot_hash` is the proof both arms saw
+identical evidence, and it is what makes a debate replayable months later.
+`tests/test_evidence_snapshot.py::test_same_hurdle_same_fixtures_same_hash` is
+that proof, running fully offline.
+
+## Persona-conditioned retrieval vs. G-DMAD's reasoning-strategy diversity
+
+G-DMAD diversifies debaters by reasoning strategy (IO / CCoT / DDCoT). Those
+axes lean on visual grounding, which a text-only financial domain does not
+have. This project substitutes its own axis: persona-conditioned retrieval over
+a shared question. Each persona's `QueryLens` (`app/evidence/lenses.py`) turns
+the same `EvidenceQuestion` into different queries, so debaters hold genuinely
+different evidence, not different tone over the same facts. A test asserts the
+five lenses' query sets differ for every topic. Lenses only generate queries;
+they never argue.
+
+Locked archetypes: saver, liquidity-hawk, skeptic, opportunity-seeker,
+contrarian. Locked group assignment (`DEBATE_GROUPS`):
+
+| Group | Personas |
+|-------|----------|
+| Group 1 | skeptic, saver, liquidity-hawk |
+| Group 2 | skeptic, opportunity-seeker, contrarian |
+
+The skeptic is in both groups so neither is structurally groupthink-prone
+(G-DMAD's failure case: a group with no adversarial role converging
+confidently on a shared wrong answer). 3b runs 2 groups x 3 personas x 3 rounds.
+
+## Primitive-driven questions
+
+`derive_evidence_questions(primitives)` is pure and maps primitives, never a
+hurdle "type", to topics: GOAL + ONE_TIME_OUTFLOW -> savings instruments;
+RISK_CONSTRAINT -> emergency fund; RECURRING_OUTFLOW -> cost of living;
+INFLOW_CHANGE (-) -> income smoothing, (+) -> investment capacity;
+HORIZON_SHIFT -> opportunity cost of delay. Unrecognised primitives are
+skipped, never raised on. Questions use primitive types only (never amounts,
+dates or free-text reasons), so no user data reaches an outbound query.
+
+## Why evidence snapshots are append-only like the ledger
+
+`evidence_snapshot` and `evidence_item` use the same two-layer guard as
+`ledger_entry` (the `@append_only` ORM guard plus a Postgres trigger). A
+re-debate on updated evidence is a NEW snapshot (`force_refresh=true`), never a
+mutation of the old one; old snapshots stay queryable via
+`GET /evidence-snapshot/{id}`. Without `force_refresh`, building is idempotent
+and returns the existing snapshot.
+
+## Offline fixtures are mandatory for tests
+
+Every adapter is servable by `FixtureReplayAdapter` from
+`tests/fixtures/evidence/`. A free-tier API's rate limit (Alpha Vantage ~5
+calls/min) cannot be the dependency a graded test suite relies on, and a frozen
+snapshot's hash must be reproducible without the source being live.
+`EVIDENCE_MODE=fixture` is the default and is forced in `tests/conftest.py`.
+`live` mode adds a same-day SQLite response cache (`.cache/`) so development
+runs don't burn quota; it is a convenience, the frozen snapshot is the system
+of record. `scripts/record_evidence_fixtures.py [--live] [--check]` regenerates
+or audits fixtures.
+
+## The seam 3b will fill
+
+A debating agent's context = `EvidenceSnapshot.items` +
+`EgressPolicy.apply(state, DEBATE_AGENT)` (Layer 2's `generalize_for_debate()`).
+This layer does NOT implement that combination; it is documented here only.
+Evidence is public market/regulatory data, so it never passes through
+EgressPolicy and its routes are not admin-gated, unlike the vault routes.
+
+## Documented deviations
+
+- No `AppendOnlyMixin` exists in Layer 2; the `@append_only` decorator and the
+  generic `enforce_append_only()` trigger function (migration 002) are reused.
+- `fetched_at` is excluded from the hash; a wall-clock field would defeat
+  reproducibility by construction.
+- Alpha Vantage and FRED fixtures are SYNTHETIC (marked `[SYNTHETIC]`) because
+  no API keys were available to record real ones. Their shape mirrors the live
+  adapters' output; `record_evidence_fixtures.py --live` replaces them.
+  LOCAL_REGULATORY fixtures are real. Corpus excerpts are orientation
+  summaries, not legal text; verify rates and rules against primary sources.
+- The feasibility pre-check is a stub (`quick_feasibility_check` always returns
+  True), called before `build_evidence_snapshot` in `run_evidence_pipeline` so
+  the seam exists. Real infeasibility detection belongs to the optimizer
+  (Layer 3d).
+
+## Not addressed here
+
+l-diversity / t-closeness-style gaps in the evidence itself (for example one
+source's bias) are NOT addressed by this layer. Surfacing and challenging them
+is the debate's job in 3b/3c, not retrieval's.
+
+## Non-goals
+
+No debate engine, no persona reasoning, no meta-evaluator, no real feasibility
+logic, no combination of evidence with user state, no live-API test dependency.

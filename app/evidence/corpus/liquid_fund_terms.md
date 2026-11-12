@@ -1,0 +1,3 @@
+# Liquid fund terms
+
+Liquid fund exit load redemption withdrawal: SEBI rules require liquid funds to hold securities maturing within 91 days. Graded exit load applies on redemption within 7 days of purchase and is nil after that. Redemption usually settles T+1 and instant redemption facilities are capped. Liquid fund SEBI rules still valid: categorisation norms were issued in 2017 and amended since; verify on sebi.gov.in. Liquid fund yield versus savings account: liquid funds have often yielded more than savings accounts but returns are not guaranteed. Liquid fund risk credit risk debt fund warning: debt funds carry credit and interest rate risk and are not covered by deposit insurance.

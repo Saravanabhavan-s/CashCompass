@@ -47,5 +47,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Layer 3a live-mode dev cache
+.cache/
+
 # Logs
 *.log

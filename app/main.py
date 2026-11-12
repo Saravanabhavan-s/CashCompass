@@ -5,11 +5,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api import egress, hurdles, ledger, sensitive, state, vault
+from app.api import egress, evidence, hurdles, ledger, sensitive, state, vault
 from app.exceptions import (
     CleartextLeakError,
     DecryptionError,
     EgressPolicyViolation,
+    HurdleNotFound,
     KeyConfigurationError,
     NormalizationError,
     ShreddedError,
@@ -27,7 +28,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="CashCompass",
-    description="Decision-aware personal finance foundation — Layer 1 + Layer 2 (PII vault)",
+    description="Decision-aware personal finance foundation — Layer 1 + Layer 2 (PII vault) + Layer 3a (evidence)",
     version="0.2.0",
     lifespan=lifespan,
 )
@@ -38,6 +39,7 @@ app.include_router(state.router)
 app.include_router(sensitive.router)
 app.include_router(vault.router)
 app.include_router(egress.router)
+app.include_router(evidence.router)
 
 
 def _error_response(status_code: int, message: str) -> JSONResponse:
@@ -48,6 +50,11 @@ def _error_response(status_code: int, message: str) -> JSONResponse:
 # pattern at every new call site. Handler bodies for DecryptionError and
 # CleartextLeakError deliberately do NOT echo str(exc): those messages can
 # carry field-level context that should not reach a client response.
+@app.exception_handler(HurdleNotFound)
+async def _hurdle_not_found_handler(request: Request, exc: HurdleNotFound):
+    return _error_response(404, str(exc))
+
+
 @app.exception_handler(ShreddedError)
 async def _shredded_handler(request: Request, exc: ShreddedError):
     return _error_response(410, str(exc))

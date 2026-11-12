@@ -1,0 +1,3 @@
+# RBI fixed and recurring deposit basics
+
+Fixed deposit and recurring deposit interest rate guaranteed return: banks set deposit rates themselves under RBI directions on interest rates on deposits; the rate is fixed for the tenure. RBI fixed deposit rate regulation source is the Master Direction on Interest Rate on Deposits. Premature withdrawal penalty: banks typically levy 0.5 to 1 percent lower rate on premature closure. Sweep-in fixed deposit emergency corpus linked to savings accounts gives guaranteed return with partial withdrawal flexibility. Senior citizens usually receive an extra 0.25 to 0.50 percent. Interest is taxable; verify rates with the bank.

@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.7.0",
     "pydantic-settings>=2.2.0",
     "cryptography>=42.0.0",
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +32,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+"app.evidence" = ["corpus/*.md", "corpus/manifest.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
