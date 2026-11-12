@@ -624,6 +624,15 @@ itself hallucinate). It scores every claim against the frozen snapshot.
   are normalised; digits stay exact, so "₹6 lakh" never matches "Rs 5 lakh").
   `C2` etc. are unknown handles. The report counts FACT claims citing C1, E-handles, both, neither.
 
+- **Flag reasons**: `no_citation`, `unknown_handle`, `ungrounded_figure` (the figure is in no
+  item at all), and `misattributed_figure` (the figure is real, in C1 or another snapshot item, but
+  not in the item the claim cites). All four flag the claim, so `hallucination_rate` stays strict.
+  The report also gives `fabrication_rate` (claims with any of the first three) and
+  `misattribution_rate` (claims whose only problem is misattribution) over FACT claims, overall /
+  by round / by persona, plus per-reason counts. A claim with both kinds counts as fabricated, so
+  `fabrication_rate + misattribution_rate == hallucination_rate`. `HIGH_HALLUCINATION` triggers on
+  the strict rate and its message shows the split.
+
 Not built here: optimizer, guardrails, recommendation endpoints, eval harness.
 
 ---

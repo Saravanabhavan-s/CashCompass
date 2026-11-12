@@ -162,3 +162,22 @@ def test_low_diversity_caps_agreement_component_at_point_eight():
 def test_cap_never_raises_a_lower_agreement():
     c = compute_confidence(3, 0.6, 1, True, low_diversity=True)
     assert c.components["agreement"] == D("0.6000")
+
+
+# ---- HIGH_HALLUCINATION shows the split, stays strict ------------------------
+def test_high_hallucination_message_shows_fabricated_vs_misattributed():
+    rep = run_guardrails(hallucination_rate=0.5, fabrication_rate=0.25, misattribution_rate=0.25)
+    f = next(x for x in rep.findings if x.code == "HIGH_HALLUCINATION")
+    assert f.severity == Severity.WARN
+    assert "50.00%" in f.message and "fabricated 25.00%" in f.message and "misattributed 25.00%" in f.message
+
+
+def test_high_hallucination_trigger_uses_the_strict_rate_even_if_all_misattributed():
+    rep = run_guardrails(hallucination_rate=0.5, fabrication_rate=0.0, misattribution_rate=0.5)
+    assert "HIGH_HALLUCINATION" in rep.codes(Severity.WARN)  # misattribution still counts against the claim
+    assert "HIGH_HALLUCINATION" not in codes(run_guardrails(hallucination_rate=0.34, fabrication_rate=0.0, misattribution_rate=0.34))
+
+
+def test_high_hallucination_without_split_keeps_plain_message():
+    f = next(x for x in run_guardrails(hallucination_rate=0.5).findings if x.code == "HIGH_HALLUCINATION")
+    assert "fabricated" not in f.message

@@ -266,6 +266,8 @@ def run_pipeline(
         texts=texts,
         grounded_facts=len(grounded),
         hallucination_rate=report.hallucination.overall.rate,
+        fabrication_rate=report.hallucination.overall.fabrication_rate,
+        misattribution_rate=report.hallucination.overall.misattribution_rate,
         living_expense_missing=living is None,
         pool_empty=pool_empty,
         failed_turns=failed,

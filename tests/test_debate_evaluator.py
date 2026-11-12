@@ -12,6 +12,7 @@ from app.debate.evaluator import (
     EvaluationReport,
     EvidenceQualitySelector,
     claim_redundancy,
+    classify_flag,
     evaluate_debate,
     hallucination_metrics,
     score_agent,
@@ -84,8 +85,9 @@ def test_flag_ungrounded_figure_and_ratio():
     assert s.flagged and s.reasons == ["ungrounded_figure"] and s.score == 0.0
     assert s.figure_grounding_ratio == 0.5
     assert score_claim(C("FACT", ["E1"], ["3.5", "9.9", "7.7"]), HM).figure_grounding_ratio == 0.333333
-    # figure exists, but only in an item that was NOT cited
-    assert score_claim(C("FACT", ["E1"], ["520.10"]), HM).flagged
+    # figure exists, but only in an item that was NOT cited -> misattributed, still flagged
+    mis = score_claim(C("FACT", ["E1"], ["520.10"]), HM)
+    assert mis.flagged and mis.reasons == ["misattributed_figure"] and mis.score == 0.0
     # grounded in ANY cited item is enough
     assert not score_claim(C("FACT", ["E1", "E2"], ["520.10"]), HM).flagged
 
@@ -125,6 +127,69 @@ def test_dash_normalisation_still_works():
     assert not score_claim(C("FACT", ["C1"], ["Rs 5-6 lakh"]), HM).flagged  # case has an en dash and a rupee sign
 
 
+# ---- misattributed vs ungrounded --------------------------------------------
+def test_one_hand_built_claim_per_reason():
+    clean = score_claim(C("FACT", ["E1"], ["3.5"]), HM)
+    no_cit = score_claim(C("FACT"), HM)
+    unknown = score_claim(C("FACT", ["E99"]), HM)
+    ungrounded = score_claim(C("FACT", ["E1"], ["9.9"]), HM)  # exists nowhere
+    from_case = score_claim(C("FACT", ["E1"], ["6-12 months"]), HM)  # exists only in C1
+    from_item = score_claim(C("FACT", ["E1"], ["520.10"]), HM)  # exists only in E2
+    assert (clean.flagged, clean.reasons) == (False, [])
+    assert no_cit.reasons == ["no_citation"]
+    assert unknown.reasons == ["unknown_handle"]
+    assert ungrounded.reasons == ["ungrounded_figure"]
+    assert from_case.reasons == ["misattributed_figure"]
+    assert from_item.reasons == ["misattributed_figure"]
+    for s in (no_cit, unknown, ungrounded, from_case, from_item):
+        assert s.flagged and s.score == 0.0  # every reason still flags: the strict rate stays strict
+
+
+def test_claim_with_both_kinds_of_figure_failure_is_fabricated():
+    both = score_claim(C("FACT", ["E1"], ["520.10", "9.9"]), HM)
+    assert both.reasons == ["ungrounded_figure", "misattributed_figure"]
+    assert classify_flag(both.reasons) == "fabricated"  # fabrication dominates, so the split is a partition
+    assert classify_flag(["misattributed_figure"]) == "misattributed"
+    assert classify_flag(["no_citation", "misattributed_figure"]) == "fabricated"
+    assert classify_flag([]) is None
+
+
+def _facts(*claims, group="group_1", persona=Persona.SKEPTIC, rnd=1):
+    return _turn(group, persona, list(claims), rnd=rnd)
+
+
+def test_rate_arithmetic_with_the_split():
+    A = C("FACT", ["E1"], ["3.5"])  # clean
+    B = C("FACT")  # no_citation
+    Cc = C("FACT", ["E99"])  # unknown_handle
+    Dd = C("FACT", ["E1"], ["9.9"])  # ungrounded
+    E = C("FACT", ["E1"], ["520.10"])  # misattributed
+    F = C("FACT", ["E1"], ["520.10", "9.9"])  # misattributed + ungrounded -> fabricated
+    turns = [
+        _facts(A, B, rnd=1), _facts(E, persona=Persona.SAVER, rnd=1),
+        _facts(Cc, A, rnd=2), _facts(Dd, F, persona=Persona.SAVER, rnd=2),
+        _turn("group_1", Persona.LIQUIDITY_HAWK, [inference()], rnd=2),  # no FACT claims: invisible to the rates
+    ]
+    m = hallucination_metrics(turns, HM)
+    o = m.overall
+    assert (o.total, o.flagged, o.fabricated, o.misattributed) == (7, 5, 4, 1)
+    assert (o.rate, o.fabrication_rate, o.misattribution_rate) == (0.714286, 0.571429, 0.142857)
+    assert o.fabricated + o.misattributed == o.flagged  # a partition: strict rate = fabrication + misattribution
+    assert o.reasons.model_dump() == {"no_citation": 1, "unknown_handle": 1, "ungrounded_figure": 2, "misattributed_figure": 2}
+    r1, r2 = m.by_round["1"], m.by_round["2"]
+    assert (r1.total, r1.flagged, r1.rate, r1.fabrication_rate, r1.misattribution_rate) == (3, 2, 0.666667, 0.333333, 0.333333)
+    assert (r2.total, r2.flagged, r2.rate, r2.fabrication_rate, r2.misattribution_rate) == (4, 3, 0.75, 0.75, 0.0)
+    s_, sav = m.by_persona["skeptic"], m.by_persona["saver"]
+    assert (s_.total, s_.flagged, s_.rate, s_.fabrication_rate, s_.misattribution_rate) == (4, 2, 0.5, 0.5, 0.0)
+    assert (sav.total, sav.flagged, sav.rate, sav.fabrication_rate, sav.misattribution_rate) == (3, 3, 1.0, 0.666667, 0.333333)
+    assert m.by_persona["liquidity_hawk"].fabrication_rate == 0.0 and m.by_persona["liquidity_hawk"].total == 0
+
+
+def test_rates_are_zero_without_fact_claims():
+    o = hallucination_metrics([_turn("g", Persona.SAVER, [inference()])], HM).overall
+    assert (o.total, o.fabrication_rate, o.misattribution_rate) == (0, 0.0, 0.0)
+
+
 # ---- C1: the banded case as citable evidence --------------------------------
 def test_case_figure_present_and_citing_c1_is_grounded():
     s = score_claim(C("FACT", ["C1"], ["5-6 lakh"]), HM)  # hyphen typed; the case has an en dash
@@ -149,11 +214,14 @@ def test_claim_citing_c1_and_e3_is_checked_against_both():
     bad = score_claim(C("FACT", ["C1", "E3"], ["5-6 lakh", "nowhere"]), HM)
     assert bad.flagged and bad.reasons == ["ungrounded_figure"] and bad.figure_grounding_ratio == 0.5
     assert score_claim(C("FACT", ["C1", "E2"], ["5-6 lakh"]), HM).score == 0.9  # (1.0 case + 0.8 AV) / 2
-    assert score_claim(C("FACT", ["E3"], ["5-6 lakh"]), HM).flagged  # not cited -> not checked against C1
+    not_cited = score_claim(C("FACT", ["E3"], ["5-6 lakh"]), HM)  # real figure, but it is in C1, which was not cited
+    assert not_cited.flagged and not_cited.reasons == ["misattributed_figure"]
 
 
 def test_multiple_reasons_all_recorded():
-    s = score_claim(C("FACT", ["E99"], ["3.5"]), HM)
+    s = score_claim(C("FACT", ["E99"], ["3.5"]), HM)  # 3.5 is a real number, but in E1, which was not cited
+    assert s.reasons == ["unknown_handle", "misattributed_figure"]
+    s = score_claim(C("FACT", ["E99"], ["no such number"]), HM)
     assert s.reasons == ["unknown_handle", "ungrounded_figure"]
 
 
@@ -278,6 +346,9 @@ def test_hallucination_rate_arithmetic(scripted_result):
     m = hallucination_metrics(res.turns, ctx.handle_map)
     # round 1: facts 2+1+1+1+1+1 = 7, flagged 1+0+1+0+1+0 = 3 ; rounds 2,3: 7 facts, 2 flagged
     assert (m.overall.flagged, m.overall.total, m.overall.rate) == (7, 21, 0.333333)
+    assert (m.overall.fabricated, m.overall.misattributed) == (7, 0)  # no_citation x3, unknown_handle x1, ungrounded x3
+    assert (m.overall.fabrication_rate, m.overall.misattribution_rate) == (0.333333, 0.0)
+    assert m.overall.reasons.model_dump() == {"no_citation": 3, "unknown_handle": 1, "ungrounded_figure": 3, "misattributed_figure": 0}
     assert (m.by_round["1"].flagged, m.by_round["1"].total, m.by_round["1"].rate) == (3, 7, 0.428571)
     for r in ("2", "3"):
         assert (m.by_round[r].flagged, m.by_round[r].total, m.by_round[r].rate) == (2, 7, 0.285714)

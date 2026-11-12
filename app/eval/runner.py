@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.debate import prompts
 from app.debate.context import DebateContext, _magnitudes, build_debate_context
 from app.debate.engine import parse_agent_output
-from app.debate.evaluator import score_agent, score_claim
+from app.debate.evaluator import classify_flag, score_agent, score_claim
 from app.debate.llm import LLMClient, LLMRequest, LLMResponse, ScriptedLLM, get_llm_client
 from app.debate.schemas import AgentOutput, ClaimKind, DebateConfig
 from app.eval.dataset import EvalQuery
@@ -186,7 +186,8 @@ def _run_off(q: EvalQuery, ctx: DebateContext, state: FinancialState, snapshot, 
 
     hm = ctx.handle_map
     facts = [c for c in out.claims if c.kind == ClaimKind.FACT]
-    flagged = sum(score_claim(c, hm).flagged for c in facts)
+    kinds = [classify_flag(score_claim(c, hm).reasons) for c in facts]
+    flagged = sum(k is not None for k in kinds)
     score = score_agent(out, hm)
     living = q.monthly_living_expense
     opt = optimize(state, hurdle.primitives, [(out.plan, score)], assumptions, living, as_of)
@@ -210,6 +211,8 @@ def _run_off(q: EvalQuery, ctx: DebateContext, state: FinancialState, snapshot, 
         texts=texts,
         grounded_facts=len(facts) - flagged,
         hallucination_rate=(flagged / len(facts)) if facts else 0.0,
+        fabrication_rate=(kinds.count("fabricated") / len(facts)) if facts else 0.0,
+        misattribution_rate=(kinds.count("misattributed") / len(facts)) if facts else 0.0,
         living_expense_missing=living is None,
         pool_empty=opening_pool(state) == 0,
         repaired=opt.status == "REPAIRED",

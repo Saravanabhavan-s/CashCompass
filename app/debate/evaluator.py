@@ -29,6 +29,7 @@ so all its rebuttals are unresolved.
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Mapping
 
@@ -60,6 +61,7 @@ _CURRENCY = re.compile(r"₹|\brs\b\.?|\binr\b", re.IGNORECASE)  # rupee sign, R
 _LAKH = re.compile(r"\b(?:lakhs?|lacs?)\b", re.IGNORECASE)
 
 
+@lru_cache(maxsize=8192)
 def _norm(s: str) -> str:
     """Normalise a figure / evidence text before the verbatim check:
     - dash variants (en/em dash, minus) -> '-'  (the banded case prints "5-6 lakh" with an en dash)
@@ -92,10 +94,26 @@ class AgentScore(BaseModel):
     claims: list[ClaimScore]
 
 
+class ReasonCounts(BaseModel):
+    """FACT claims carrying each reason (a claim with several reasons counts in each)."""
+
+    no_citation: int = 0
+    unknown_handle: int = 0
+    ungrounded_figure: int = 0
+    misattributed_figure: int = 0
+
+
 class Counts(BaseModel):
     flagged: int
     total: int
-    rate: float
+    rate: float  # strict hallucination rate: every flagged FACT claim / FACT claims
+    # Partition of `flagged`: a claim with ANY fabrication reason is "fabricated"; one whose only
+    # problem is a real figure attributed to the wrong item is "misattributed".
+    fabricated: int = 0
+    misattributed: int = 0
+    fabrication_rate: float = 0.0  # (no_citation + unknown_handle + ungrounded_figure) claims / FACT claims
+    misattribution_rate: float = 0.0  # misattributed_figure-only claims / FACT claims
+    reasons: ReasonCounts = ReasonCounts()
 
 
 class HallucinationMetrics(BaseModel):
@@ -179,10 +197,24 @@ class EvaluationReport(BaseModel):
 
 # ---- scoring ---------------------------------------------------------------
 class _ClaimEval:
-    __slots__ = ("score", "flagged", "reasons", "ratio", "weight")
+    __slots__ = ("score", "flagged", "reasons", "ratio", "weight", "failed")
 
-    def __init__(self, score: Decimal, flagged: bool, reasons: list[str], ratio: Decimal, weight: Decimal | None):
+    def __init__(self, score: Decimal, flagged: bool, reasons: list[str], ratio: Decimal, weight: Decimal | None, failed: list[str] | None = None):
         self.score, self.flagged, self.reasons, self.ratio, self.weight = score, flagged, reasons, ratio, weight
+        self.failed = failed or []  # quoted figures not found in the CITED items
+
+
+FABRICATION_REASONS = ("no_citation", "unknown_handle", "ungrounded_figure")
+MISATTRIBUTION_REASON = "misattributed_figure"
+
+
+def classify_flag(reasons: list[str]) -> str | None:
+    """'fabricated' if any fabrication reason, else 'misattributed', else None (not flagged)."""
+    if any(r in FABRICATION_REASONS for r in reasons):
+        return "fabricated"
+    if MISATTRIBUTION_REASON in reasons:
+        return "misattributed"
+    return None
 
 
 def _eval_claim(claim: Claim, handle_map: Mapping[str, EvidenceRef]) -> _ClaimEval:
@@ -197,16 +229,33 @@ def _eval_claim(claim: Claim, handle_map: Mapping[str, EvidenceRef]) -> _ClaimEv
     if len(known) != len(handles):
         reasons.append("unknown_handle")
 
+    # A quoted figure must appear in the CITED items. If it is missing there but exists in the
+    # case (C1) or in any other snapshot item it is MISATTRIBUTED (real number, wrong citation);
+    # if it exists nowhere it is UNGROUNDED (fabricated).
     figures = claim.quoted_figures
-    contents = [_norm(i.content) for i in known]
-    grounded = sum(1 for fig in figures if _norm(fig) and any(_norm(fig) in c for c in contents))
+    cited = {i.handle for i in known}
+    cited_text = [_norm(i.content) for i in known]
+    other_text = [_norm(r.content) for h, r in handle_map.items() if h not in cited]
+    grounded, ungrounded, misattributed, failed = 0, False, False, []
+    for fig in figures:
+        nf = _norm(fig)
+        if nf and any(nf in c for c in cited_text):
+            grounded += 1
+            continue
+        failed.append(fig)
+        if nf and any(nf in c for c in other_text):
+            misattributed = True
+        else:
+            ungrounded = True
     ratio = Decimal(grounded) / Decimal(len(figures)) if figures else Decimal(1)
-    if grounded < len(figures):
+    if ungrounded:
         reasons.append("ungrounded_figure")
+    if misattributed:
+        reasons.append(MISATTRIBUTION_REASON)
 
     weight = sum((SOURCE_WEIGHT[i.source] for i in known), Decimal(0)) / len(known) if known else None
     if reasons:
-        return _ClaimEval(Decimal(0), True, reasons, ratio, weight)
+        return _ClaimEval(Decimal(0), True, reasons, ratio, weight, failed)
     return _ClaimEval(weight * ratio, False, [], ratio, weight)
 
 
@@ -243,33 +292,51 @@ def score_group(turns: list[AgentTurn], handle_map: Mapping[str, EvidenceRef]) -
     return _f(_group_score(turns, handle_map))
 
 
-def _counts(flagged: int, total: int) -> Counts:
-    rate = _f(Decimal(flagged) / Decimal(total)) if total else 0.0
-    return Counts(flagged=flagged, total=total, rate=rate)
+def _rate(n: int, total: int) -> float:
+    return _f(Decimal(n) / Decimal(total)) if total else 0.0
+
+
+class _Tally:
+    def __init__(self):
+        self.total = self.flagged = self.fab = self.mis = 0
+        self.reasons = {r: 0 for r in ReasonCounts.model_fields}
+
+    def add(self, reasons: list[str]):
+        self.total += 1
+        kind = classify_flag(reasons)
+        self.flagged += kind is not None
+        self.fab += kind == "fabricated"
+        self.mis += kind == "misattributed"
+        for r in reasons:
+            self.reasons[r] += 1
+
+    def counts(self) -> Counts:
+        return Counts(
+            flagged=self.flagged,
+            total=self.total,
+            rate=_rate(self.flagged, self.total),
+            fabricated=self.fab,
+            misattributed=self.mis,
+            fabrication_rate=_rate(self.fab, self.total),
+            misattribution_rate=_rate(self.mis, self.total),
+            reasons=ReasonCounts(**self.reasons),
+        )
 
 
 def hallucination_metrics(turns: list[AgentTurn], handle_map: Mapping[str, EvidenceRef]) -> HallucinationMetrics:
-    tally: dict[tuple, list[int]] = {}
-
-    def bump(key, flagged):
-        c = tally.setdefault(key, [0, 0])
-        c[1] += 1
-        c[0] += int(flagged)
-
+    tally: dict[tuple, _Tally] = {}
     for t in turns:
         if not t.output:
             continue
         for c in t.output.claims:
             if c.kind != ClaimKind.FACT:
                 continue
-            fl = _eval_claim(c, handle_map).flagged
-            bump(("all",), fl)
-            bump(("round", t.round_no), fl)
-            bump(("persona", t.persona.value), fl)
+            reasons = _eval_claim(c, handle_map).reasons
+            for key in (("all",), ("round", t.round_no), ("persona", t.persona.value)):
+                tally.setdefault(key, _Tally()).add(reasons)
 
-    def get(*key):
-        f, n = tally.get(key, [0, 0])
-        return _counts(f, n)
+    def get(*key) -> Counts:
+        return tally.get(key, _Tally()).counts()
 
     rounds = sorted({t.round_no for t in turns})
     personas = sorted({t.persona.value for t in turns})

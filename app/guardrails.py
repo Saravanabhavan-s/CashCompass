@@ -64,6 +64,8 @@ def run_guardrails(
     texts: Iterable[str] = (),  # evidence + agent text to scan for injection
     grounded_facts: int | None = None,  # None = no debate ran (skip the check)
     hallucination_rate: float | None = None,
+    fabrication_rate: float | None = None,  # split of the strict rate, for the message only
+    misattribution_rate: float | None = None,
     living_expense_missing: bool = False,
     pool_empty: bool = False,
     failed_turns: int = 0,
@@ -86,7 +88,12 @@ def run_guardrails(
     if hits:
         f.append(Finding(code="PROMPT_INJECTION", severity=W, message="Instruction-like text found in evidence or agent output: " + "; ".join(hits)))
     if hallucination_rate is not None and hallucination_rate > HALLUCINATION_WARN_ABOVE:
-        f.append(Finding(code="HIGH_HALLUCINATION", severity=W, message=f"Hallucination rate {hallucination_rate:.2%} exceeds {HALLUCINATION_WARN_ABOVE:.0%}."))
+        split = (
+            f" (fabricated {fabrication_rate:.2%}, misattributed {misattribution_rate:.2%})"
+            if fabrication_rate is not None and misattribution_rate is not None
+            else ""
+        )
+        f.append(Finding(code="HIGH_HALLUCINATION", severity=W, message=f"Hallucination rate {hallucination_rate:.2%}{split} exceeds {HALLUCINATION_WARN_ABOVE:.0%}."))
     missing = []
     if living_expense_missing:
         missing.append("monthly living expense not provided (surplus is an upper bound)")
