@@ -5,14 +5,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api import egress, evidence, hurdles, ledger, sensitive, state, vault
+from app.api import egress, evidence, hurdles, ledger, recommendation, sensitive, state, vault
 from app.exceptions import (
     CleartextLeakError,
+    DebateFailed,
     DecryptionError,
     EgressPolicyViolation,
     HurdleNotFound,
     KeyConfigurationError,
+    LLMError,
+    LLMNotConfigured,
     NormalizationError,
+    RecommendationConflict,
+    RecommendationNotFound,
     ShreddedError,
     TokenNotFoundError,
 )
@@ -28,7 +33,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="CashCompass",
-    description="Decision-aware personal finance foundation — Layer 1 + Layer 2 (PII vault) + Layer 3a (evidence)",
+    description="Decision-aware personal finance foundation — Layer 1 + Layer 2 (PII vault) + Layer 3a-3e (evidence, debate, optimizer, recommendations)",
     version="0.2.0",
     lifespan=lifespan,
 )
@@ -40,6 +45,7 @@ app.include_router(sensitive.router)
 app.include_router(vault.router)
 app.include_router(egress.router)
 app.include_router(evidence.router)
+app.include_router(recommendation.router)
 
 
 def _error_response(status_code: int, message: str) -> JSONResponse:
@@ -88,3 +94,28 @@ async def _cleartext_leak_handler(request: Request, exc: CleartextLeakError):
 @app.exception_handler(EgressPolicyViolation)
 async def _egress_violation_handler(request: Request, exc: EgressPolicyViolation):
     return _error_response(500, "Egress policy violation.")
+
+
+@app.exception_handler(RecommendationNotFound)
+async def _rec_not_found_handler(request: Request, exc: RecommendationNotFound):
+    return _error_response(404, str(exc))
+
+
+@app.exception_handler(RecommendationConflict)
+async def _rec_conflict_handler(request: Request, exc: RecommendationConflict):
+    return _error_response(409, str(exc))
+
+
+@app.exception_handler(LLMNotConfigured)
+async def _llm_not_configured_handler(request: Request, exc: LLMNotConfigured):
+    return _error_response(503, str(exc))
+
+
+@app.exception_handler(LLMError)
+async def _llm_error_handler(request: Request, exc: LLMError):
+    return _error_response(502, "The language model call failed.")
+
+
+@app.exception_handler(DebateFailed)
+async def _debate_failed_handler(request: Request, exc: DebateFailed):
+    return _error_response(502, "The debate produced no usable output.")

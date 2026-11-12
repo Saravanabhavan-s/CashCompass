@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import get_session
+from app.debate.llm import LLMClient, get_llm_client
+from app.exceptions import LLMNotConfigured
 from app.vault.crypto import constant_time_eq
 
 
@@ -29,3 +31,12 @@ def require_vault_admin(x_vault_admin_key: str | None = Header(default=None, ali
     if not x_vault_admin_key or not constant_time_eq(x_vault_admin_key, configured):
         raise HTTPException(401, "Missing or invalid X-Vault-Admin-Key.")
     return "admin"
+
+
+def get_llm() -> LLMClient:
+    """The debate LLM. 503 when none is configured (fail closed: no fake answer).
+    Tests override this dependency with ScriptedLLM."""
+    try:
+        return get_llm_client()
+    except LLMNotConfigured as e:
+        raise HTTPException(503, str(e)) from None

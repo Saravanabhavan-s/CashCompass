@@ -4,7 +4,8 @@ from app.models.debate import DebateRun, DebateTurn
 from app.models.evidence import EvidenceItem, EvidenceSnapshot
 from app.models.hurdle import Hurdle
 from app.models.ledger import LedgerEntry
+from app.models.recommendation import Recommendation, RecommendationDecision
 from app.models.sensitive import SensitiveProfile
 from app.models.vault import DetokenizationAudit, VaultEntry
 
-__all__ = ["Hurdle", "LedgerEntry", "SensitiveProfile", "VaultEntry", "DetokenizationAudit", "EvidenceSnapshot", "EvidenceItem", "DebateRun", "DebateTurn"]
+__all__ = ["Hurdle", "LedgerEntry", "SensitiveProfile", "VaultEntry", "DetokenizationAudit", "EvidenceSnapshot", "EvidenceItem", "DebateRun", "DebateTurn", "Recommendation", "RecommendationDecision"]

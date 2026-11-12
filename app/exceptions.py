@@ -72,3 +72,12 @@ class DebateFailed(RuntimeError):
 class DebateInputLeak(EgressPolicyViolation):
     """The leak scanner found user data in the finished debate case. Nothing
     was sent to any model."""
+
+
+class RecommendationNotFound(LookupError):
+    """No recommendation exists for the given id."""
+
+
+class RecommendationConflict(RuntimeError):
+    """The requested confirm/reject is not allowed in the recommendation's
+    current state (already decided, blocked, or warnings not acknowledged)."""

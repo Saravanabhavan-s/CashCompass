@@ -6,7 +6,7 @@ from app.models.ledger import LedgerEntry
 from app.schemas.ledger import LedgerEntryCreate
 
 
-def append_entry(db: Session, data: LedgerEntryCreate) -> LedgerEntry:
+def append_entry(db: Session, data: LedgerEntryCreate, *, commit: bool = True) -> LedgerEntry:
     entry = LedgerEntry(
         effective_date=data.effective_date,
         type=data.type.value,
@@ -14,10 +14,14 @@ def append_entry(db: Session, data: LedgerEntryCreate) -> LedgerEntry:
         description=data.description,
         effect=[e.model_dump() for e in data.effect],
         linked_hurdle_id=data.linked_hurdle_id,
+        evidence=data.evidence,
     )
     db.add(entry)
-    db.commit()
-    db.refresh(entry)
+    if commit:
+        db.commit()
+        db.refresh(entry)
+    else:
+        db.flush()
     return entry
 
 

@@ -16,6 +16,7 @@ from app.evidence.personas import Persona
 from app.exceptions import DebateInputLeak, HurdleNotFound
 from app.models.evidence import EvidenceSnapshot
 from app.models.hurdle import Hurdle
+from app.schemas.state import FinancialState
 from app.services.egress import _HEALTH_FAMILY_TOKEN_PREFIXES, preview_egress
 from app.services.state import rebuild_state_from_ledger
 from app.vault.classification import classify
@@ -102,7 +103,11 @@ def build_debate_context(
     snapshot: EvidenceSnapshot,
     as_of: date | None = None,
     user_id: str | None = None,
+    state: FinancialState | None = None,
 ) -> DebateContext:
+    """`state` overrides the ledger-derived state (used by the eval harness,
+    whose queries carry their own state). It is projected and scanned exactly
+    like the ledger state."""
     hurdle = db.get(Hurdle, hurdle_id)
     if hurdle is None:
         raise HurdleNotFound(f"Hurdle {hurdle_id} not found.")
@@ -110,9 +115,14 @@ def build_debate_context(
         raise ValueError("snapshot does not belong to this hurdle")
     as_of = as_of or date.today()
 
-    preview = preview_egress(db, EgressDestination.DEBATE_AGENT, user_id=user_id)
-    if preview["leaks"]:
-        raise DebateInputLeak(f"egress preview leaked: {preview['leaks'][0]}")
+    if state is None:
+        preview = preview_egress(db, EgressDestination.DEBATE_AGENT, user_id=user_id)
+        if preview["leaks"]:
+            raise DebateInputLeak(f"egress preview leaked: {preview['leaks'][0]}")
+        projected_state = preview["payload"]
+        state = rebuild_state_from_ledger(db)
+    else:
+        projected_state = apply_egress(state.model_dump(mode="python"), EgressDestination.DEBATE_AGENT)
 
     primitives = [apply_egress(p, EgressDestination.DEBATE_AGENT) for p in hurdle.primitives]
     for src, proj in zip(hurdle.primitives, primitives):
@@ -122,9 +132,8 @@ def build_debate_context(
                 proj["months_from_now"] = band_months(max(_months_between(as_of, date.fromisoformat(raw)), 0))
                 break
 
-    case = {"as_of": as_of.isoformat(), "state": preview["payload"], "hurdle": primitives}
+    case = {"as_of": as_of.isoformat(), "state": projected_state, "hurdle": primitives}
 
-    state = rebuild_state_from_ledger(db)
     forbidden_values = _magnitudes(state.model_dump(mode="python")) + _magnitudes(hurdle.primitives)
     forbidden_substrings = [hurdle.label, hurdle.raw_description] + [
         p["reason"] for p in hurdle.primitives if isinstance(p.get("reason"), str)

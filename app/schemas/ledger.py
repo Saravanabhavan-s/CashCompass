@@ -21,6 +21,7 @@ class LedgerEntryCreate(BaseModel):
     description: str
     effect: list[EffectDelta]
     linked_hurdle_id: str | None = None
+    evidence: dict | None = None  # citations / provenance for agent-suggested entries
 
 
 class LedgerEntryRead(BaseModel):

@@ -25,7 +25,7 @@ from app.debate.context import DebateContext
 from app.debate.llm import LLMClient, LLMRequest
 from app.debate.schemas import AgentOutput, AgentTurn, DebateConfig, DebateResult, LeaderDecision, Plan
 from app.evidence.personas import Persona
-from app.exceptions import DebateFailed
+from app.exceptions import DebateFailed, EgressPolicyViolation
 from app.models.debate import DebateRun, DebateTurn
 from app.models.evidence import EvidenceSnapshot
 
@@ -89,6 +89,8 @@ def _call_agent(
 
     try:
         raw = ask(prompt, False)
+    except EgressPolicyViolation:
+        raise  # a leak is never a "dead agent": abort the whole debate (fail closed)
     except Exception as e:  # noqa: BLE001 - any provider failure kills this turn only
         turn.error = f"llm: {type(e).__name__}: {e}"[:500]
         return turn
@@ -100,6 +102,8 @@ def _call_agent(
         err = str(first)
     try:
         raw2 = ask(f"{prompt}\n\nYOUR PREVIOUS REPLY:\n{raw[:3000]}\n\n{prompts.render_repair(err)}", True)
+    except EgressPolicyViolation:
+        raise
     except Exception as e:  # noqa: BLE001
         turn.error = f"llm(repair): {type(e).__name__}: {e}"[:500]
         return turn

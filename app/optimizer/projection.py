@@ -76,6 +76,11 @@ def parse_primitives(raw: Iterable[Any]) -> list:
     return out
 
 
+def opening_pool(state: FinancialState) -> Decimal:
+    """savings + liquid_cash, falling back to cash when liquid_cash is None."""
+    return (state.savings or ZERO) + (state.liquid_cash if state.liquid_cash is not None else (state.cash or ZERO))
+
+
 def month_index(as_of: date, d: date) -> int:
     return max(0, (d.year - as_of.year) * 12 + (d.month - as_of.month))
 
@@ -177,7 +182,7 @@ def build_schedule(
                     fx += monthly_equivalent(p.amount, p.cadence)
         fixed[m] = fx
 
-    pool = (state.savings or ZERO) + (state.liquid_cash if state.liquid_cash is not None else (state.cash or ZERO))
+    pool = opening_pool(state)
     min_liq = max((p.min_liquidity for p in prims if p.type == PrimitiveType.RISK_CONSTRAINT), default=ZERO)
     all_goal_m = [m for m, _ in goal_months]
     all_out_m = [m for m, _ in out_events if m < horizon]

@@ -656,3 +656,45 @@ Exact amounts reach this layer (OPTIMIZER egress) and the user's own view only.
 - Without `monthly_living_expense` the surplus is an upper bound (also listed).
 - FRED and SPY/INDA evidence is US data; the regulatory corpus is an orientation
   summary not yet verified against primary sources.
+
+---
+
+# Layer 3e — Guardrails, Confidence, Human-Confirm
+
+`POST /hurdles/{id}/recommendation` runs: evidence snapshot -> real feasibility
+(`assess_feasibility`) -> debate (`EvidenceQualitySelector`) -> evaluator -> optimizer
+ranks the debated candidates (repair search if none is feasible) -> guardrails ->
+confidence -> an **immutable** `recommendation` row.
+
+- **Infeasible hurdle**: persisted as `INFEASIBLE` with the quantified gap (extra
+  monthly saving, months of delay) and **zero LLM calls**.
+- **Leak**: a scanner hit while building the debate case, or in any outgoing model
+  request (`_GuardedLLM` scans for exact amounts >= 10,000 and vault tokens), is
+  persisted as `BLOCKED` with a `LEAK` finding. A leak raised mid-debate aborts
+  the debate; it is never downgraded to a "dead agent".
+- **Guardrails** (`app/guardrails.py`): LEAK, INFEASIBLE, POLICY_VIOLATION,
+  NO_GROUNDED_EVIDENCE = BLOCK; PROMPT_INJECTION, HIGH_HALLUCINATION (> 0.34),
+  INCOMPLETE_INPUT, DEGRADED_DEBATE = WARN; PLAN_REPAIRED = INFO. Every response
+  carries "Decision support, not financial advice."
+- **Confidence** in [0,1] = 0.30 x robustness (scenarios_feasible/3) + 0.25 x agreement
+  + 0.25 x evidence quality of the agents behind the chosen plan + 0.20 x completeness
+  (living expense given AND non-empty pool AND no failed turns; binary). The four
+  components are returned. LOW < 0.5, HIGH > 0.75.
+- **Human confirm**: `POST /recommendations/{id}/confirm {confirmed_by, acknowledge_warnings}`
+  or `/reject {rejected_by, reason}`. BLOCK/INFEASIBLE -> 409; WARN findings or LOW
+  confidence need `acknowledge_warnings=true` (else 409); a second decision -> 409
+  (also a DB unique constraint); no LLM configured -> 503; unknown hurdle -> 404.
+  Confirm writes exactly ONE ledger entry (COMMITMENT, `AGENT_SUGGESTED_USER_CONFIRMED`,
+  `effect=[]`, evidence = recommendation id, debate run id, snapshot hash,
+  citations, confidence) in the same transaction as the decision row, so
+  `rebuild_state_from_ledger` is unchanged.
+- **Tables** (migration 005): `recommendation`, `recommendation_decision`, both append-only
+  (ORM guard + trigger). Status is derived: PENDING until a decision row exists.
+
+Changes to earlier layers (needed for 3e): `run_debate` re-raises
+`EgressPolicyViolation`; `build_debate_context` accepts an optional `state` override
+(used by the eval harness); `LedgerEntryCreate` gained `evidence` and `append_entry`
+a `commit=` flag.
+
+Limitations: see "Layer 3d" (illustrative rates, US-centric FRED/SPY data,
+unverified regulatory corpus). Confidence is a heuristic, not a calibrated probability.
